@@ -12,3 +12,102 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum Role {
+  CLIENT
+  DRIVER
+  RESTAURANT_OWNER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  ASSIGNED
+  PREPARING
+  ON_THE_WAY
+  DELIVERED
+  CANCELLED
+}
+
+model User {
+  idUser  String @id @default(uuid())
+  name String
+  surname String
+  ci  String @unique
+  email String @unique
+  password String
+  role Role
+  createdAt DateTime @default(now())
+
+  restaurant Restaurant? @relation("RestaurantOwner",fields: [idRestaurant],references: [idRestaurant])
+  idRestaurant String?
+  
+  clientOrders Order[] @relation("ClientOrders")
+  driverOrders Order[] @relation("DriverOrders")
+
+}
+
+model Restaurant {
+  idRestaurant String @id @default(uuid())
+  name String
+  address String
+  lat Float
+  lng Float
+  isActive Boolean
+
+  createdAt DateTime @default(now())
+
+  restaurantOwner User[] @relation("RestaurantOwner") 
+  products Product[]
+  orders Order[]
+}
+
+model Product {
+  idProduct String @id @default(uuid())
+  name String
+  price Float
+
+  restaurant Restaurant @relation(fields: [idRestaurant],references: [idRestaurant])
+  idRestaurant String
+
+  orderItem OrderItem []
+}
+
+model Order {
+  idOrder String @id @default(uuid())
+
+  client User @relation("ClientOrders",fields: [idClient], references: [idUser])
+  idClient String
+
+  restaurant Restaurant @relation(fields: [idRestaurant],references: [idRestaurant])
+  idRestaurant String
+
+  driver User? @relation("DriverOrders",fields: [idDriver],references: [idUser])
+  idDriver String?
+  
+  status OrderStatus @default(PENDING)
+  subtotal Float
+  total Float
+  deliveryFee Float?
+  serviceFee Float?
+  discount Float?
+  deliveryLat Float
+  deliveryLng Float
+  
+  createdAt DateTime @default(now())
+
+
+
+  orderItem OrderItem []
+}
+
+model OrderItem {
+  idOrderItem String @id @default(uuid())
+  idOrder String
+  idProduct String
+  quantity Int
+  priceAtPurchase Float
+
+  order Order @relation(fields: [idOrder],references: [idOrder])
+  product Product @relation(fields: [idProduct],references: [idProduct])
+}

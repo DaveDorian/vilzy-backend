@@ -1,0 +1,15 @@
+version: '3'
+
+services:
+  chasquiDB:
+    image: postgres:15.3
+    container_name: vilzy_db
+    restart: always
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_USER=vilzy
+      - POSTGRES_PASSWORD=vilzy2026
+      - POSTGRES_DB=vilzy_db
+    volumes:
+      - ./postgres:/var/lib/postgresql/data
