@@ -83,10 +83,14 @@ export class UserPrismaRepository implements UserRepository {
     });
   }
 
-  async refreshTokens(userId: string): Promise<TokenEntity[]> {
+  async refreshTokens(
+    userId: string,
+    deviceId: string,
+  ): Promise<TokenEntity[]> {
     const tokens = await this.prisma.refreshToken.findMany({
       where: {
         idUser: userId,
+        deviceId: deviceId,
         revoked: false,
       },
     });

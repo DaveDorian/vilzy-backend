@@ -7,6 +7,8 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UserRepository } from 'src/domain/repositories/user.repository';
+import { LoginDto } from './dto/login.dto';
+import { RefreshDto } from './dto/refresh.dto';
 
 @Injectable()
 export class AuthService {
@@ -17,18 +19,16 @@ export class AuthService {
   ) {}
 
   private async getTokens(userId: string, email: string) {
+    const payload = { sub: userId, email };
     const [accessToken, refreshToken] = await Promise.all([
-      this.jwtService.signAsync(
-        { sub: userId, email },
-        { secret: process.env.JWT_ACCESS_SECRET, expiresIn: '15m' },
-      ),
-      this.jwtService.signAsync(
-        { sub: userId, email },
-        {
-          secret: process.env.JWT_REFRESH_SECRET,
-          expiresIn: '7d',
-        },
-      ),
+      this.jwtService.signAsync(payload, {
+        secret: process.env.JWT_ACCESS_SECRET,
+        expiresIn: '15m',
+      }),
+      this.jwtService.signAsync(payload, {
+        secret: process.env.JWT_REFRESH_SECRET,
+        expiresIn: '7d',
+      }),
     ]);
 
     return {
@@ -37,15 +37,21 @@ export class AuthService {
     };
   }
 
-  private async saveRefreshToken(
+  async getSessions(userId: string) {
+    return this.userRepository.getActiveSessions(userId);
+  }
+
+  private async saveSession(
     userId: string,
     refreshToken: string,
-    expiresAt: Date,
     deviceId: string,
     userAgent?: string,
     ipAddress?: string,
   ) {
     const hashedToken = await bcrypt.hash(refreshToken, 10);
+    const decoded = this.jwtService.decode(refreshToken) as any;
+    const expiresAt = new Date(decoded.exp * 1000);
+
     await this.userRepository.saveRefreshToken(
       userId,
       hashedToken,
@@ -56,50 +62,47 @@ export class AuthService {
     );
   }
 
-  async refreshTokens(
-    userId: string,
-    email: string,
-    refreshToken: string,
-    deviceId: string,
-  ) {
-    const tokens = await this.userRepository.refreshTokens(userId);
+  async refreshTokens(dto: RefreshDto) {
+    const decoded = this.jwtService.verify(dto.refreshToken, {
+      secret: process.env.JWT_REFRESH_SECRET,
+    });
 
-    let validToken = null;
+    const sessions = await this.userRepository.refreshTokens(
+      decoded.sub,
+      dto.deviceId,
+    );
 
-    for (const token of tokens) {
-      const match = await bcrypt.compare(refreshToken, token.token);
+    let validSession = null;
+
+    for (const session of sessions) {
+      const match = await bcrypt.compare(dto.refreshToken, session.token);
       if (match) {
-        validToken = token;
+        validSession = session;
         break;
       }
     }
 
-    if (!validToken) {
+    if (!validSession) {
       throw new ForbiddenException('Invalid refresh token');
     }
 
-    if (validToken.expiresAt < new Date()) {
+    if (validSession.expiresAt < new Date()) {
       throw new ForbiddenException('Token expired');
     }
 
-    if (validToken.revoked) {
-      await this.userRepository.updateRefreshTokenMany(userId);
+    if (validSession.revoked) {
+      await this.userRepository.updateRefreshTokenMany(decoded.sub);
 
       throw new ForbiddenException('Session compromised');
     }
 
-    await this.userRepository.updateRefreshToken(validToken.idRefreshToken);
+    await this.userRepository.updateRefreshToken(validSession.idRefreshToken);
 
-    const newTokens = await this.getTokens(userId, email);
+    const tokens = await this.getTokens(decoded.sub, decoded.email);
 
-    await this.saveRefreshToken(
-      userId,
-      newTokens.refreshToken,
-      new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      deviceId,
-    );
+    await this.saveSession(decoded.sub, tokens.refreshToken, dto.deviceId);
 
-    return newTokens;
+    return tokens;
   }
 
   async validateUser(email: string, password: string) {
@@ -114,24 +117,24 @@ export class AuthService {
     return user;
   }
 
-  async login(email: string, password: string, deviceId: string) {
-    const user = await this.validateUser(email, password);
+  async login(dto: LoginDto, userAgent?: string, ip?: string) {
+    const user = await this.validateUser(dto.email, dto.password);
 
-    const tokens = await this.getTokens(user.id!, email);
+    const tokens = await this.getTokens(user.id!, dto.email);
 
-    const decoded = this.jwtService.decode(tokens.refreshToken) as any;
-    const expiresAt = new Date(decoded.exp * 1000);
-
-    await this.saveRefreshToken(
+    //Save session
+    await this.saveSession(
       user.id!,
       tokens.refreshToken,
-      expiresAt,
-      deviceId,
+      dto.deviceId,
+      userAgent,
+      ip,
     );
 
     return tokens;
   }
 
+  //revokeSession
   async logout(tokenId: string) {
     await this.userRepository.updateRefreshToken(tokenId);
   }
