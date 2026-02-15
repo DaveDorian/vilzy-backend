@@ -38,7 +38,7 @@ model User {
   password String
   role Role
   createdAt DateTime @default(now())
-  refreshToken String?
+  tokens RefreshToken[]
 
   restaurant Restaurant? @relation("RestaurantOwner",fields: [idRestaurant],references: [idRestaurant])
   idRestaurant String?
@@ -46,6 +46,16 @@ model User {
   clientOrders Order[] @relation("ClientOrders")
   driverOrders Order[] @relation("DriverOrders")
 
+}
+
+model RefreshToken {
+  idRefreshToken String @id @default(uuid())
+  token String
+  idUser String
+  user User @relation(fields: [idUser],references: [idUser],onDelete: Cascade)
+  createdAt DateTime @default(now())
+  revoked Boolean @default(false)
+  expiresAt DateTime
 }
 
 model Restaurant {

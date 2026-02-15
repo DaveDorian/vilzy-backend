@@ -37,29 +37,53 @@ export class AuthService {
     };
   }
 
-  private async updateRefreshToken(userId: string, refreshToken: string) {
+  private async saveRefreshToken(
+    userId: string,
+    refreshToken: string,
+    expiresAt: Date,
+  ) {
     const hashedToken = await bcrypt.hash(refreshToken, 10);
-    await this.userRepository.updateRefreshToken(userId, hashedToken);
+    await this.userRepository.saveRefreshToken(userId, hashedToken, expiresAt);
   }
 
-  async refreshTokens(userId: string, refresToken: string) {
-    const user = await this.userRepository.findById(userId);
+  async refreshTokens(userId: string, email: string, refreshToken: string) {
+    const tokens = await this.userRepository.refreshTokens(userId);
 
-    if (!user || !user.refreshToken) {
-      throw new ForbiddenException('Access Denied');
+    let validToken = null;
+
+    for (const token of tokens) {
+      const match = await bcrypt.compare(refreshToken, token.token);
+      if (match) {
+        validToken = token;
+        break;
+      }
     }
 
-    const matches = await bcrypt.compare(refresToken, user.refreshToken);
-
-    if (!matches) {
-      throw new ForbiddenException('Acces Denied');
+    if (!validToken) {
+      throw new ForbiddenException('Invalid refresh token');
     }
 
-    const tokens = await this.getTokens(user.id!, user.email);
+    if (validToken.expiresAt < new Date()) {
+      throw new ForbiddenException('Token expired');
+    }
 
-    await this.updateRefreshToken(user.id!, tokens.refreshToken);
+    if (validToken.revoked) {
+      await this.userRepository.updateRefreshTokenMany(userId);
 
-    return tokens;
+      throw new ForbiddenException('Session compromised');
+    }
+
+    await this.userRepository.updateRefreshToken(validToken.idRefreshToken);
+
+    const newTokens = await this.getTokens(userId, email);
+
+    await this.saveRefreshToken(
+      userId,
+      newTokens.refreshToken,
+      new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    );
+
+    return newTokens;
   }
 
   async validateUser(email: string, password: string) {
@@ -79,12 +103,18 @@ export class AuthService {
 
     const tokens = await this.getTokens(user.id!, email);
 
-    await this.updateRefreshToken(user.id!, tokens.refreshToken);
+    const now = new Date(Date.now());
+
+    await this.saveRefreshToken(user.id!, tokens.refreshToken, now);
 
     return tokens;
   }
 
-  async logout(userId: string) {
-    await this.userRepository.updateRefreshToken(userId, null);
+  async logout(tokenId: string) {
+    await this.userRepository.updateRefreshToken(tokenId);
+  }
+
+  async logoutAll(userId: string) {
+    await this.userRepository.updateRefreshTokenMany(userId);
   }
 }

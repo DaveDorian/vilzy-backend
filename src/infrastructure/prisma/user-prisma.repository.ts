@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { TokenEntity } from 'src/domain/entities/token.entity';
 import { UserEntity } from 'src/domain/entities/user.entity';
 import { UserRepository } from 'src/domain/repositories/user.repository';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -59,17 +60,51 @@ export class UserPrismaRepository implements UserRepository {
       user.email,
       user.password,
       user.role,
-      user.refreshToken!,
     );
   }
 
-  async updateRefreshToken(
+  async saveRefreshToken(
     userId: string,
     refreshToken: string | null,
+    expiresAt: Date,
   ): Promise<void> {
-    await this.prisma.user.update({
+    await this.prisma.refreshToken.create({
+      data: { token: refreshToken!, expiresAt, idUser: userId },
+    });
+  }
+
+  async refreshTokens(userId: string): Promise<TokenEntity[]> {
+    const tokens = await this.prisma.refreshToken.findMany({
+      where: {
+        idUser: userId,
+        revoked: false,
+      },
+    });
+
+    tokens.map((token) => {
+      new TokenEntity(
+        token.idRefreshToken,
+        token.token,
+        token.idUser,
+        token.revoked,
+        token.expiresAt,
+      );
+    });
+
+    return tokens;
+  }
+
+  async updateRefreshToken(idValidToken: string): Promise<void> {
+    await this.prisma.refreshToken.update({
+      where: { idRefreshToken: idValidToken },
+      data: { revoked: true },
+    });
+  }
+
+  async updateRefreshTokenMany(userId: string): Promise<void> {
+    await this.prisma.refreshToken.updateMany({
       where: { idUser: userId },
-      data: { refreshToken },
+      data: { revoked: true },
     });
   }
 }
