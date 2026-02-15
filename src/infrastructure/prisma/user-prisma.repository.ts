@@ -67,9 +67,19 @@ export class UserPrismaRepository implements UserRepository {
     userId: string,
     refreshToken: string | null,
     expiresAt: Date,
+    deviceId: string,
+    userAgent?: string,
+    ipAddress?: string,
   ): Promise<void> {
     await this.prisma.refreshToken.create({
-      data: { token: refreshToken!, expiresAt, idUser: userId },
+      data: {
+        token: refreshToken!,
+        expiresAt,
+        idUser: userId,
+        deviceId,
+        userAgent,
+        ipAddress,
+      },
     });
   }
 
@@ -105,6 +115,23 @@ export class UserPrismaRepository implements UserRepository {
     await this.prisma.refreshToken.updateMany({
       where: { idUser: userId },
       data: { revoked: true },
+    });
+  }
+
+  async getActiveSessions(userId: string): Promise<any[]> {
+    return this.prisma.refreshToken.findMany({
+      where: {
+        idUser: userId,
+        revoked: false,
+        expiresAt: { gt: new Date() },
+      },
+      select: {
+        idRefreshToken: true,
+        deviceId: true,
+        userAgent: true,
+        ipAddress: true,
+        createdAt: true,
+      },
     });
   }
 }

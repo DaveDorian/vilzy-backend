@@ -41,12 +41,27 @@ export class AuthService {
     userId: string,
     refreshToken: string,
     expiresAt: Date,
+    deviceId: string,
+    userAgent?: string,
+    ipAddress?: string,
   ) {
     const hashedToken = await bcrypt.hash(refreshToken, 10);
-    await this.userRepository.saveRefreshToken(userId, hashedToken, expiresAt);
+    await this.userRepository.saveRefreshToken(
+      userId,
+      hashedToken,
+      expiresAt,
+      deviceId,
+      userAgent,
+      ipAddress,
+    );
   }
 
-  async refreshTokens(userId: string, email: string, refreshToken: string) {
+  async refreshTokens(
+    userId: string,
+    email: string,
+    refreshToken: string,
+    deviceId: string,
+  ) {
     const tokens = await this.userRepository.refreshTokens(userId);
 
     let validToken = null;
@@ -81,6 +96,7 @@ export class AuthService {
       userId,
       newTokens.refreshToken,
       new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      deviceId,
     );
 
     return newTokens;
@@ -98,14 +114,20 @@ export class AuthService {
     return user;
   }
 
-  async login(email: string, password: string) {
+  async login(email: string, password: string, deviceId: string) {
     const user = await this.validateUser(email, password);
 
     const tokens = await this.getTokens(user.id!, email);
 
-    const now = new Date(Date.now());
+    const decoded = this.jwtService.decode(tokens.refreshToken) as any;
+    const expiresAt = new Date(decoded.exp * 1000);
 
-    await this.saveRefreshToken(user.id!, tokens.refreshToken, now);
+    await this.saveRefreshToken(
+      user.id!,
+      tokens.refreshToken,
+      expiresAt,
+      deviceId,
+    );
 
     return tokens;
   }

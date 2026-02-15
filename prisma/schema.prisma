@@ -53,9 +53,14 @@ model RefreshToken {
   token String
   idUser String
   user User @relation(fields: [idUser],references: [idUser],onDelete: Cascade)
+  
+  deviceId String
+  userAgent String?
+  ipAddress String?
+  
   createdAt DateTime @default(now())
-  revoked Boolean @default(false)
   expiresAt DateTime
+  revoked Boolean @default(false)
 }
 
 model Restaurant {

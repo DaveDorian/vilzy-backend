@@ -9,8 +9,12 @@ export interface UserRepository {
     userId: string,
     refreshToken: string | null,
     expiresAt: Date,
+    deviceId: string,
+    userAgent?: string,
+    ipAddress?: string,
   ): Promise<void>;
   refreshTokens(userId: string): Promise<TokenEntity[]>;
   updateRefreshToken(idValidToken: string): Promise<void>;
   updateRefreshTokenMany(userId: string): Promise<void>;
+  getActiveSessions(userId: string): Promise<any[]>;
 }
