@@ -43,4 +43,33 @@ export class UserPrismaRepository implements UserRepository {
       user.password,
     );
   }
+
+  async findById(userId: string): Promise<UserEntity | null> {
+    const user = await this.prisma.user.findUnique({
+      where: { idUser: userId },
+    });
+
+    if (!user) return null;
+
+    return new UserEntity(
+      user.idUser,
+      user.ci,
+      user.name,
+      user.surname,
+      user.email,
+      user.password,
+      user.role,
+      user.refreshToken!,
+    );
+  }
+
+  async updateRefreshToken(
+    userId: string,
+    refreshToken: string | null,
+  ): Promise<void> {
+    await this.prisma.user.update({
+      where: { idUser: userId },
+      data: { refreshToken },
+    });
+  }
 }

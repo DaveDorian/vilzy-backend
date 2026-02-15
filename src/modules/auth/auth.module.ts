@@ -11,7 +11,11 @@ import { UserPrismaRepository } from 'src/infrastructure/prisma/user-prisma.repo
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'supersecret',
-      signOptions: { expiresIn: '1d' },
+      signOptions: { expiresIn: '15m' },
+    }),
+    JwtModule.register({
+      secret: process.env.JWT_REFRESH_SECRET,
+      signOptions: { expiresIn: '7d' },
     }),
   ],
   providers: [

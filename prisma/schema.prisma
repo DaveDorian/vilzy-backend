@@ -38,7 +38,7 @@ model User {
   password String
   role Role
   createdAt DateTime @default(now())
-  refresToken String?
+  refreshToken String?
 
   restaurant Restaurant? @relation("RestaurantOwner",fields: [idRestaurant],references: [idRestaurant])
   idRestaurant String?
