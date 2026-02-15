@@ -1,52 +1,37 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from 'src/prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';
+import { UserRepository } from 'src/domain/repositories/user.repository';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private prisma: PrismaService,
+    @Inject('UserRepository')
+    private userRepository: UserRepository,
     private jwtService: JwtService,
   ) {}
 
-  async register(data: RegisterDto) {
-    const hashedPassword = await bcrypt.hash(data.password, 10);
+  async validateUser(email: string, password: string) {
+    const user = await this.userRepository.findByEmail(email);
 
-    const user = await this.prisma.user.create({
-      data: {
-        name: data.name,
-        surname: data.surname,
-        email: data.email,
-        ci: data.ci,
-        password: hashedPassword,
-        role: data.role,
-      },
-    });
+    if (!user) throw new UnauthorizedException();
 
-    return this.generateToken(user);
+    const valid = await bcrypt.compare(password, user.password!);
+
+    if (!valid) throw new UnauthorizedException();
+
+    return user;
   }
 
   async login(email: string, password: string) {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.validateUser(email, password);
 
-    if (!user) throw new UnauthorizedException('Credenciales Invalidas');
+    const payload = { sub: user.id, email: user.email };
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-
-    if (!isPasswordValid)
-      throw new UnauthorizedException('Contraseña Incorrecta');
-
-    return this.generateToken(user);
-  }
-
-  private generateToken(user: any) {
     return {
-      access_token: this.jwtService.sign({
-        sub: user.id,
-        role: user.role,
-      }),
+      access_token: this.jwtService.sign(payload),
     };
   }
 }

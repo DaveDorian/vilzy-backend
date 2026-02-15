@@ -4,6 +4,7 @@ import { AuthController } from './auth.controller';
 import { JwtModule } from '@nestjs/jwt';
 import { JwtStrategy } from './jwt.strategy/jwt.strategy';
 import { PassportModule } from '@nestjs/passport';
+import { UserPrismaRepository } from 'src/infrastructure/prisma/user-prisma.repository';
 
 @Module({
   imports: [
@@ -13,7 +14,11 @@ import { PassportModule } from '@nestjs/passport';
       signOptions: { expiresIn: '1d' },
     }),
   ],
-  providers: [AuthService, JwtStrategy],
+  providers: [
+    AuthService,
+    { provide: 'UserRepository', useClass: UserPrismaRepository },
+    JwtStrategy,
+  ],
   controllers: [AuthController],
 })
 export class AuthModule {}
