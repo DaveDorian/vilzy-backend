@@ -18,8 +18,8 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  private async getTokens(userId: string, email: string) {
-    const payload = { sub: userId, email };
+  private async getTokens(userId: string, email: string, role: string) {
+    const payload = { sub: userId, email, role };
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
         secret: process.env.JWT_ACCESS_SECRET,
@@ -98,7 +98,11 @@ export class AuthService {
 
     await this.userRepository.updateRefreshToken(validSession.idRefreshToken);
 
-    const tokens = await this.getTokens(decoded.sub, decoded.email);
+    const tokens = await this.getTokens(
+      decoded.sub,
+      decoded.email,
+      decoded.role,
+    );
 
     await this.saveSession(decoded.sub, tokens.refreshToken, dto.deviceId);
 
@@ -120,7 +124,7 @@ export class AuthService {
   async login(dto: LoginDto, userAgent?: string, ip?: string) {
     const user = await this.validateUser(dto.email, dto.password);
 
-    const tokens = await this.getTokens(user.id!, dto.email);
+    const tokens = await this.getTokens(user.id!, dto.email, user.role);
 
     //Save session
     await this.saveSession(

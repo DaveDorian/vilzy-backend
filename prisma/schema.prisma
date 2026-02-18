@@ -18,6 +18,7 @@ enum Role {
   DRIVER
   RESTAURANT_OWNER
   ADMIN
+  SUPER_ADMIN
 }
 
 enum OrderStatus {
@@ -36,7 +37,7 @@ model User {
   ci  String @unique
   email String @unique
   password String
-  role Role
+  role Role @default(CLIENT)
   createdAt DateTime @default(now())
   tokens RefreshToken[]
 
