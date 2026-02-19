@@ -1,4 +1,4 @@
-import { Role } from 'generated/prisma/enums';
+import { Role } from 'src/generated/prisma/enums';
 
 export class UserPolicy {
   static canUpdate(currentUser: any, targetUserId: number): boolean {

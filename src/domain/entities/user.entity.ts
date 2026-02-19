@@ -9,6 +9,9 @@ export class UserEntity {
     public email: string,
     public password?: string,
     public role: Role = Role.CLIENT,
+    public idRestaurant?: string,
+    public createdAt?: Date,
     public refreshToken?: string,
+    public idTenant?: string,
   ) {}
 }

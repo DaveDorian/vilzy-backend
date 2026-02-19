@@ -9,6 +9,7 @@ import * as bcrypt from 'bcrypt';
 import { UserRepository } from 'src/domain/repositories/user.repository';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
+import { User } from 'src/generated/prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -18,8 +19,13 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  private async getTokens(userId: string, email: string, role: string) {
-    const payload = { sub: userId, email, role };
+  private async getTokens(user: User) {
+    const payload = {
+      sub: user.idUser,
+      email: user.email,
+      role: user.role,
+      tenantId: user.idTenant,
+    };
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
         secret: process.env.JWT_ACCESS_SECRET,
@@ -98,11 +104,7 @@ export class AuthService {
 
     await this.userRepository.updateRefreshToken(validSession.idRefreshToken);
 
-    const tokens = await this.getTokens(
-      decoded.sub,
-      decoded.email,
-      decoded.role,
-    );
+    const tokens = await this.getTokens(decoded);
 
     await this.saveSession(decoded.sub, tokens.refreshToken, dto.deviceId);
 
@@ -124,7 +126,18 @@ export class AuthService {
   async login(dto: LoginDto, userAgent?: string, ip?: string) {
     const user = await this.validateUser(dto.email, dto.password);
 
-    const tokens = await this.getTokens(user.id!, dto.email, user.role);
+    const tokens = await this.getTokens({
+      name: user.name,
+      idUser: user.id!,
+      surname: user.surname,
+      ci: user.ci,
+      email: user.email,
+      password: user.password!,
+      role: user.role,
+      createdAt: user.createdAt!,
+      idRestaurant: user.idRestaurant!,
+      idTenant: user.idTenant!,
+    });
 
     //Save session
     await this.saveSession(
