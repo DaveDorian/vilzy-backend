@@ -22,10 +22,12 @@ enum Role {
 }
 
 enum OrderStatus {
-  PENDING
-  ASSIGNED
+  CREATED
+  CONFIRMED
   PREPARING
-  ON_THE_WAY
+  READY
+  ASSIGNED
+  PICKED_UP
   DELIVERED
   CANCELLED
 }
@@ -36,6 +38,7 @@ model Tenant{
   isActive Boolean @default(true)
   users User[]
   restaurants Restaurant[]
+  orders Order[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -57,7 +60,7 @@ model User {
   restaurant Restaurant? @relation("RestaurantOwner",fields: [idRestaurant],references: [idRestaurant])
   idRestaurant String?
   
-  clientOrders Order[] @relation("ClientOrders")
+  customerOrders Order[] @relation("CustomerOrders")
   driverOrders Order[] @relation("DriverOrders")
 
   idTenant String
@@ -111,30 +114,41 @@ model Product {
 
 model Order {
   idOrder String @id @default(uuid())
+  orderNumber Int @default(autoincrement())
 
-  client User @relation("ClientOrders",fields: [idClient], references: [idUser])
-  idClient String
+  customer User @relation("CustomerOrders",fields: [idCustomer], references: [idUser])
+  idCustomer String
 
   restaurant Restaurant @relation(fields: [idRestaurant],references: [idRestaurant])
   idRestaurant String
 
   driver User? @relation("DriverOrders",fields: [idDriver],references: [idUser])
   idDriver String?
+
+  idTenant String
+  tenant Tenant @relation(fields: [idTenant],references: [idTenant])
   
-  status OrderStatus @default(PENDING)
-  subtotal Float
-  total Float
-  deliveryFee Float?
+  status OrderStatus @default(CREATED)
+  
   serviceFee Float?
+  deliveryFee Float?
+  subtotal Float
   discount Float?
+  total Float
+
+  deliveryAddress String
   deliveryLat Float
   deliveryLng Float
   
   createdAt DateTime @default(now())
-
+  updatedAt DateTime @updatedAt
 
 
   orderItem OrderItem []
+
+  @@index([idTenant])
+  @@index([idRestaurant])
+  @@index([idDriver])
 }
 
 model OrderItem {
