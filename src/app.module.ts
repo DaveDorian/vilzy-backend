@@ -14,7 +14,9 @@ import { DispatchModule } from './modules/dispatch/dispatch.module';
 import { TrackingService } from './modules/tracking/tracking.service';
 import { MapboxService } from './map/mapbox/mapbox.service';
 import { MapModule } from './map/map.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
+ScheduleModule.forRoot();
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -28,6 +30,12 @@ import { MapModule } from './map/map.module';
     MapModule,
   ],
   controllers: [AppController],
-  providers: [AppService, TrackingGateway, DispatchService, TrackingService, MapboxService],
+  providers: [
+    AppService,
+    TrackingGateway,
+    DispatchService,
+    TrackingService,
+    MapboxService,
+  ],
 })
 export class AppModule {}

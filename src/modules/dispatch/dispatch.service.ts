@@ -57,7 +57,13 @@ export class DispatchService {
 
     const bestDriver = nearbyDrivers[0];
 
-    const updateOrder = await this.prisma.$transaction(async (tx) => {
+    await this.offerOrderToDriver({
+      orderId,
+      driverId: bestDriver.driverId,
+      offerSeconds: 15,
+    });
+
+    /*const updateOrder = await this.prisma.$transaction(async (tx) => {
       const freshOrder = await tx.order.findUnique({
         where: { idOrder: orderId },
       });
@@ -71,12 +77,60 @@ export class DispatchService {
           status: 'ASSIGNED',
         },
       });
-    });
+    });*/
 
     this.trackingGateway.server
       .to(`driver-${bestDriver.driverId}`)
-      .emit('order:assigned', updateOrder);
-
-    return updateOrder;
+      .emit('order:offer', {
+        orderId,
+        expiresIn: 15,
+      });
   }
+
+  async offerOrderToDriver(params: {
+    orderId: string;
+    driverId: string;
+    offerSeconds: number;
+  }) {
+    const expiresAt = new Date(Date.now() + params.offerSeconds * 1000);
+
+    const order = await this.prisma.order.update({
+      where: { idOrder: params.orderId },
+      data: {
+        status: 'OFFERED_TO_DRIVER',
+        offeredDriverId: params.driverId,
+        offerExpiresAt: expiresAt,
+      },
+    });
+
+    return order;
+  }
+
+  async acceptedOrder(params: { orderId: string; driverId: string }) {
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { idOrder: params.orderId },
+      });
+
+      if (!order) throw new Error('Order not found');
+
+      if (order.offeredDriverId !== params.driverId)
+        throw new Error('Driver not authorized');
+
+      if (!order.offerExpiresAt || order.offerExpiresAt < new Date())
+        throw new Error('Offer expired');
+
+      return tx.order.update({
+        where: { idOrder: params.orderId },
+        data: {
+          status: 'ASSIGNED',
+          idDriver: params.driverId,
+          offeredDriverId: null,
+          offerExpiresAt: null,
+        },
+      });
+    });
+  }
+
+  async rejectOrder(params: { orderId: string; driverId: string }) {}
 }

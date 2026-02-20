@@ -158,6 +158,38 @@ export class TrackingGateway implements OnGatewayConnection {
   }
 
   @UseGuards(WsJwtGuard)
+  @SubscribeMessage('order:accept')
+  async acceptOrder(
+    @MessageBody() orderId: string,
+    @ConnectedSocket() client: Socket,
+  ) {
+    const user = client.data.user;
+
+    const order = await this.dispatchService.acceptedOrder({
+      orderId,
+      driverId: user.sub,
+    });
+
+    return order;
+  }
+
+  @UseGuards(WsJwtGuard)
+  @SubscribeMessage('order:reject')
+  async rejectOrder(
+    @MessageBody() orderId: string,
+    @ConnectedSocket() client: Socket,
+  ) {
+    const user = client.data.user;
+
+    await this.dispatchService.rejectOrder({
+      orderId,
+      driverId: user.sub,
+    });
+
+    return { rejected: true };
+  }
+
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage('order:join')
   async handleJoinOrder(
     @MessageBody() orderId: string,
