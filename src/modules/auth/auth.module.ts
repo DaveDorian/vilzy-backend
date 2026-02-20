@@ -24,5 +24,6 @@ import { UserPrismaRepository } from 'src/infrastructure/prisma/user-prisma.repo
     JwtStrategy,
   ],
   controllers: [AuthController],
+  exports: [JwtModule],
 })
 export class AuthModule {}

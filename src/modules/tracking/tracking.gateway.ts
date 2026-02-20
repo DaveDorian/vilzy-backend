@@ -2,6 +2,7 @@ import { UseGuards } from '@nestjs/common';
 import {
   ConnectedSocket,
   MessageBody,
+  OnGatewayConnection,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
@@ -12,40 +13,50 @@ import { WsJwtGuard } from 'src/modules/auth/guards/ws-jwt.guard';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { TrackingService } from './tracking.service';
 import { UpdateLocationDto } from './dto/update-location.dto';
+import { JwtService } from '@nestjs/jwt';
 
 @WebSocketGateway({
   cors: true,
 })
-export class TrackingGateway {
+export class TrackingGateway implements OnGatewayConnection {
   @WebSocketServer()
   server!: Server;
 
   constructor(
     private prisma: PrismaService,
     private readonly trackingService: TrackingService,
+    private jwtService: JwtService,
   ) {}
 
   async handleConnection(client: Socket) {
-    const tenantId = client.handshake.auth?.tenantId;
+    const token = client.handshake.auth?.token;
 
-    if (!tenantId) {
+    if (!token) {
       client.disconnect();
       return;
     }
 
-    await client.join(`tenant:${tenantId}`);
+    try {
+      const payload = await this.jwtService.verifyAsync(token);
+      client.data.user = payload;
+
+      await client.join(`tenant:${payload.tenantId}`);
+    } catch {
+      client.disconnect();
+    }
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage('location:update')
   async handleLocationUpdate(
     @MessageBody() payload: UpdateLocationDto,
     @ConnectedSocket() client: Socket,
   ) {
+    const user = client.data.user;
+
     const result = await this.trackingService.handleLocationUpdate(payload);
 
-    this.server
-      .to(`tenant:${payload.tenantId}`)
-      .emit('location:updated', result);
+    this.server.to(`tenant:${user.tenantId}`).emit('location:updated', result);
 
     return result;
   }

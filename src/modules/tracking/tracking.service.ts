@@ -8,6 +8,7 @@ export class TrackingService {
     userId: string;
     lat: number;
     lng: number;
+    tenantId: string;
   }) {
     this.logger.log(
       `Location updated: ${data.userId} -> (${data.lng},${data.lng})`,
