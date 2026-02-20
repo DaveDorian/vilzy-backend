@@ -1,4 +1,4 @@
-import { Role } from 'generated/prisma/enums';
+import { Role } from 'src/generated/prisma/enums';
 
 export class UserEntity {
   constructor(
@@ -8,9 +8,11 @@ export class UserEntity {
     public surname: string,
     public email: string,
     public password?: string,
-    public role: Role = Role.CLIENT,
+    public role: Role = Role.CUSTOMER,
+    public isActive?: boolean,
     public idRestaurant?: string,
     public createdAt?: Date,
+    public updatedAt?: Date,
     public refreshToken?: string,
     public idTenant?: string,
   ) {}

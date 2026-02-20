@@ -134,7 +134,9 @@ export class AuthService {
       email: user.email,
       password: user.password!,
       role: user.role,
+      isActive: user.isActive!,
       createdAt: user.createdAt!,
+      updatedAt: user.updatedAt!,
       idRestaurant: user.idRestaurant!,
       idTenant: user.idTenant!,
     });

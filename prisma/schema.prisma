@@ -14,11 +14,11 @@ datasource db {
 }
 
 enum Role {
-  CLIENT
-  DRIVER
-  RESTAURANT_OWNER
-  ADMIN
   SUPER_ADMIN
+  TENANT_ADMIN
+  RESTAURANT_ADMIN
+  DRIVER
+  CUSTOMER
 }
 
 enum OrderStatus {
@@ -33,11 +33,12 @@ enum OrderStatus {
 model Tenant{
   idTenant String @id @default(uuid())
   name String
+  isActive Boolean @default(true)
   users User[]
   restaurants Restaurant[]
-  products Product[]
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model User {
@@ -47,8 +48,10 @@ model User {
   ci  String @unique
   email String @unique
   password String
-  role Role @default(CLIENT)
+  role Role @default(CUSTOMER)
+  isActive Boolean @default(true)
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   tokens RefreshToken[]
 
   restaurant Restaurant? @relation("RestaurantOwner",fields: [idRestaurant],references: [idRestaurant])
@@ -83,11 +86,11 @@ model Restaurant {
   address String
   lat Float
   lng Float
-  isActive Boolean
+  isActive Boolean @default(true)
 
   createdAt DateTime @default(now())
 
-  restaurantOwner User[] @relation("RestaurantOwner") 
+  users User[] @relation("RestaurantOwner") 
   products Product[]
   orders Order[]
 
@@ -104,9 +107,6 @@ model Product {
   idRestaurant String
 
   orderItem OrderItem []
-
-  tenant Tenant @relation(fields: [idTenant],references: [idTenant])
-  idTenant String
 }
 
 model Order {
