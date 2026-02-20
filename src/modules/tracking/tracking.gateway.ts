@@ -54,9 +54,15 @@ export class TrackingGateway implements OnGatewayConnection {
   ) {
     const user = client.data.user;
 
-    const result = await this.trackingService.handleLocationUpdate(payload);
+    const result = await this.trackingService.handleLocationUpdate({
+      orderId: payload.orderId,
+      driverId: user.sub,
+      tenantId: user.tenantId,
+      lat: payload.lat,
+      lng: payload.lng,
+    });
 
-    this.server.to(`tenant:${user.tenantId}`).emit('location:updated', result);
+    this.server.to(`order:${payload.orderId}`).emit('order:tracking', result);
 
     return result;
   }
@@ -141,12 +147,12 @@ export class TrackingGateway implements OnGatewayConnection {
 
   @UseGuards(WsJwtGuard)
   @SubscribeMessage('order:join')
-  handleJoinOrder(
-    @MessageBody() data: { orderId: string },
+  async handleJoinOrder(
+    @MessageBody() orderId: string,
     @ConnectedSocket() client: Socket,
   ) {
-    client.join(`order-${data.orderId}`);
-    return { joined: true };
+    await client.join(`order:${orderId}`);
+    return { joined: orderId };
   }
 
   @SubscribeMessage('order:leave')

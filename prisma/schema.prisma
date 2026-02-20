@@ -118,6 +118,8 @@ model Order {
   idOrder String @id @default(uuid())
   orderNumber Int @default(autoincrement())
 
+  customerLat Float?
+  customerLng Float?
   customer User @relation("CustomerOrders",fields: [idCustomer], references: [idUser])
   idCustomer String
 

@@ -2,10 +2,7 @@ import { IsNumber, IsString } from 'class-validator';
 
 export class UpdateLocationDto {
   @IsString()
-  userId!: string;
-
-  @IsString()
-  tenantId!: string;
+  orderId!: string;
 
   @IsNumber()
   lat!: number;
