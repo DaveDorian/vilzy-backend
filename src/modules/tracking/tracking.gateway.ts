@@ -10,17 +10,45 @@ import { Server, Socket } from 'socket.io';
 import { calculateETA, haversineDistance } from 'src/common/util/geo.util';
 import { WsJwtGuard } from 'src/modules/auth/guards/ws-jwt.guard';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { TrackingService } from './tracking.service';
+import { UpdateLocationDto } from './dto/update-location.dto';
 
 @WebSocketGateway({
-  cors: {
-    origin: '*',
-  },
+  cors: true,
 })
 export class TrackingGateway {
   @WebSocketServer()
   server!: Server;
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly trackingService: TrackingService,
+  ) {}
+
+  async handleConnection(client: Socket) {
+    const tenantId = client.handshake.auth?.tenantId;
+
+    if (!tenantId) {
+      client.disconnect();
+      return;
+    }
+
+    await client.join(`tenant:${tenantId}`);
+  }
+
+  @SubscribeMessage('location:update')
+  async handleLocationUpdate(
+    @MessageBody() payload: UpdateLocationDto,
+    @ConnectedSocket() client: Socket,
+  ) {
+    const result = await this.trackingService.handleLocationUpdate(payload);
+
+    this.server
+      .to(`tenant:${payload.tenantId}`)
+      .emit('location:updated', result);
+
+    return result;
+  }
 
   @UseGuards(WsJwtGuard)
   @SubscribeMessage('driver:location')

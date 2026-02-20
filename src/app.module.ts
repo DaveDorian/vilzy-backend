@@ -11,6 +11,7 @@ import { TrackingGateway } from './modules/tracking/tracking.gateway';
 import { TrackingModule } from './modules/tracking/tracking.module';
 import { DispatchService } from './modules/dispatch/dispatch.service';
 import { DispatchModule } from './modules/dispatch/dispatch.module';
+import { TrackingService } from './modules/tracking/tracking.service';
 
 @Module({
   imports: [
@@ -24,6 +25,6 @@ import { DispatchModule } from './modules/dispatch/dispatch.module';
     DispatchModule,
   ],
   controllers: [AppController],
-  providers: [AppService, TrackingGateway, DispatchService],
+  providers: [AppService, TrackingGateway, DispatchService, TrackingService],
 })
 export class AppModule {}
