@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { haversineDistance } from 'src/common/util/geo.util';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { TrackingGateway } from '../tracking/tracking.gateway';
 
 @Injectable()
 export class DispatchService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private trackingGateway: TrackingGateway,
+  ) {}
 
   async autoAssignDriver(orderId: string, tenantId: string) {
     const order = await this.prisma.order.findFirst({
@@ -46,6 +50,15 @@ export class DispatchService {
         status: 'ASSIGNED',
       },
     });
+
+    this.trackingGateway.server
+      .to(`driver-${bestDriver.idDriver}`)
+      .emit('driver:new-order', {
+        orderId: updatedOrder.idOrder,
+        restaurantId: updatedOrder.idRestaurant,
+        deliveryAddress: updatedOrder.deliveryAddress,
+        total: updatedOrder.total,
+      });
 
     return updatedOrder;
   }

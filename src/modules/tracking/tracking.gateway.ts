@@ -89,6 +89,18 @@ export class TrackingGateway {
   }
 
   @UseGuards(WsJwtGuard)
+  @SubscribeMessage('driver:join')
+  handleDriverJoin(@ConnectedSocket() client: Socket) {
+    const user = client.data.user;
+
+    if (user.role !== 'DRIVER') return { ok: false };
+
+    client.join(`driver-${user.sub}`);
+
+    return { joined: true };
+  }
+
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage('order:join')
   handleJoinOrder(
     @MessageBody() data: { orderId: string },
