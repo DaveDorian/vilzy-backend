@@ -13,53 +13,68 @@ export class DispatchService {
   async autoAssignDriver(orderId: string, tenantId: string) {
     const order = await this.prisma.order.findFirst({
       where: { idOrder: orderId, idTenant: tenantId },
+      select: {
+        idOrder: true,
+        restaurant: {
+          select: {
+            lat: true,
+            lng: true,
+          },
+        },
+        idDriver: true,
+      },
     });
 
-    if (!order || !order.deliveryLat || !order.deliveryLng) return null;
+    if (!order) return null;
+    if (order.idDriver) return order;
 
     const drivers = await this.prisma.driverLocation.findMany({
-      where: { isOnline: true },
+      where: {
+        driver: {
+          idTenant: tenantId,
+          isOnline: true,
+          isAvailable: true,
+        },
+      },
       include: { driver: true },
     });
 
     if (!drivers.length) return null;
 
-    let bestDriver = null;
-    let bestDistance = Infinity;
-
-    for (const driver of drivers) {
-      const distance = haversineDistance(
+    const ranked = drivers.map((driver) => ({
+      driverId: driver.idDriver,
+      distance: haversineDistance(
+        order.restaurant.lat,
+        order.restaurant.lng,
         driver.lat,
         driver.lng,
-        order.deliveryLat,
-        order.deliveryLng,
-      );
+      ),
+    }));
 
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        bestDriver = driver;
-      }
-    }
+    ranked.sort((a, b) => a.distance - b.distance);
 
-    if (!bestDriver) return null;
+    const bestDriver = ranked[0];
 
-    const updatedOrder = await this.prisma.order.update({
-      where: { idOrder: orderId },
-      data: {
-        idDriver: bestDriver.idDriver,
-        status: 'ASSIGNED',
-      },
+    const updateOrder = await this.prisma.$transaction(async (tx) => {
+      const freshOrder = await tx.order.findUnique({
+        where: { idOrder: orderId },
+      });
+
+      if (!freshOrder || freshOrder.idDriver) return freshOrder;
+
+      return tx.order.update({
+        where: { idOrder: orderId },
+        data: {
+          idDriver: bestDriver.driverId,
+          status: 'ASSIGNED',
+        },
+      });
     });
 
     this.trackingGateway.server
-      .to(`driver-${bestDriver.idDriver}`)
-      .emit('driver:new-order', {
-        orderId: updatedOrder.idOrder,
-        restaurantId: updatedOrder.idRestaurant,
-        deliveryAddress: updatedOrder.deliveryAddress,
-        total: updatedOrder.total,
-      });
+      .to(`driver-${bestDriver.driverId}`)
+      .emit('order:assigned', updateOrder);
 
-    return updatedOrder;
+    return updateOrder;
   }
 }

@@ -40,7 +40,8 @@ export class TrackingGateway implements OnGatewayConnection {
       const payload = await this.jwtService.verifyAsync(token);
       client.data.user = payload;
 
-      await client.join(`tenant:${payload.tenantId}`);
+      //await client.join(`tenant:${payload.tenantId}`);
+      await client.join(`driver:${payload.sub}`);
     } catch {
       client.disconnect();
     }
