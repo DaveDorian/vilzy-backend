@@ -12,6 +12,8 @@ import { TrackingModule } from './modules/tracking/tracking.module';
 import { DispatchService } from './modules/dispatch/dispatch.service';
 import { DispatchModule } from './modules/dispatch/dispatch.module';
 import { TrackingService } from './modules/tracking/tracking.service';
+import { MapboxService } from './map/mapbox/mapbox.service';
+import { MapModule } from './map/map.module';
 
 @Module({
   imports: [
@@ -23,8 +25,9 @@ import { TrackingService } from './modules/tracking/tracking.service';
     OrdersModule,
     TrackingModule,
     DispatchModule,
+    MapModule,
   ],
   controllers: [AppController],
-  providers: [AppService, TrackingGateway, DispatchService, TrackingService],
+  providers: [AppService, TrackingGateway, DispatchService, TrackingService, MapboxService],
 })
 export class AppModule {}
