@@ -1,8 +1,8 @@
 version: '3'
 
 services:
-  chasquiDB:
-    image: postgres:15.3
+  vilzyDB:
+    image: postgis/postgis:15-3.3
     container_name: vilzy_db
     restart: always
     ports:

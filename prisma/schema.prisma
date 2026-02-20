@@ -23,6 +23,9 @@ enum Role {
 
 enum OrderStatus {
   CREATED
+  PENDING
+  SEARCHING_DRIVER
+  OFFERED_TO_DRIVER
   CONFIRMED
   PREPARING
   READY
@@ -70,6 +73,7 @@ model User {
 
   drivers DriverLocation[]
 
+  @@index([idTenant,isOnline,isAvailable])
 }
 
 model RefreshToken {
@@ -149,6 +153,9 @@ model Order {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  offerExpiresAt DateTime?
+  offeredDriverId String?
+
 
   orderItem OrderItem []
 
@@ -176,6 +183,8 @@ model DriverLocation {
   lat Float
   lng Float
   isOnline Boolean @default(true)
+
+  location Unsupported("geometry(Point,4326)")
 
   updatedAt DateTime @updatedAt
 

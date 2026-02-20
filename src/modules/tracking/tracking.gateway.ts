@@ -107,7 +107,18 @@ export class TrackingGateway implements OnGatewayConnection {
       data: {},
     });
 
-    await this.prisma.driverLocation.upsert({
+    await this.prisma.$executeRaw`
+    INSERT INTO "DriverLocation" ("idDriver", lat, lng, "isOnline", location)
+    VALUES (${driverId}, ${lat}, ${lng}, true, ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326))
+    ON CONFLICT ("idDriver") 
+    DO UPDATE SET 
+      lat = EXCLUDED.lat, 
+      lng = EXCLUDED.lng, 
+      location = EXCLUDED.location,
+      "isOnline" = true;
+  `;
+
+    /*await this.prisma.driverLocation.upsert({
       where: { idDriver: driverId },
       update: {
         lat,
@@ -120,7 +131,7 @@ export class TrackingGateway implements OnGatewayConnection {
         lng,
         isOnline: true,
       },
-    });
+    });*/
 
     this.server.to(`order-${orderId}`).emit('order:tracking', {
       driverId,

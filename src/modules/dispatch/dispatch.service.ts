@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { haversineDistance } from 'src/common/util/geo.util';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { TrackingGateway } from '../tracking/tracking.gateway';
 
@@ -28,32 +27,35 @@ export class DispatchService {
     if (!order) return null;
     if (order.idDriver) return order;
 
-    const drivers = await this.prisma.driverLocation.findMany({
-      where: {
-        driver: {
-          idTenant: tenantId,
-          isOnline: true,
-          isAvailable: true,
-        },
-      },
-      include: { driver: true },
-    });
+    const radiusMeters = 3000;
 
-    if (!drivers.length) return null;
+    const nearbyDrivers = await this.prisma.$queryRaw<
+      { driverId: string; distance: number }[]
+    >`
+    SELECT
+    dl."idDriver",
+    ST_Distance(
+        dl.location,
+        ST_SetSRID(ST_MakePoint(${order.restaurant.lng}, ${order.restaurant.lat}), 4326)
+    ) AS distance
+    FROM "DriverLocation" dl
+    JOIN "User" u ON u.idUser = dl."idDriver"
+    WHERE
+    u."idTenant" = ${tenantId}
+    AND u."isOnline" = true
+    AND u."isAvailable" = true
+    AND ST_DWithin(
+        dl.location,
+        ST_SetSRID(ST_MakePoint(${order.restaurant.lng}, ${order.restaurant.lat}), 4326),
+        ${radiusMeters}
+    )
+    ORDER BY distance ASC
+    LIMIT 5;
+    `;
 
-    const ranked = drivers.map((driver) => ({
-      driverId: driver.idDriver,
-      distance: haversineDistance(
-        order.restaurant.lat,
-        order.restaurant.lng,
-        driver.lat,
-        driver.lng,
-      ),
-    }));
+    if (!nearbyDrivers.length) return null;
 
-    ranked.sort((a, b) => a.distance - b.distance);
-
-    const bestDriver = ranked[0];
+    const bestDriver = nearbyDrivers[0];
 
     const updateOrder = await this.prisma.$transaction(async (tx) => {
       const freshOrder = await tx.order.findUnique({

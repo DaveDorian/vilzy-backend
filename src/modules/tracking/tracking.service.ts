@@ -42,11 +42,21 @@ export class TrackingService {
     if (order.idDriver !== driverId)
       throw new ForbiddenException('Driver not assigned to this order');
 
-    await this.prisma.driverLocation.upsert({
-      where: { idDriver: driverId },
-      update: { lat, lng },
-      create: { idDriver: driverId, lat, lng },
-    });
+    await this.prisma.$executeRaw`
+    INSERT INTO "DriverLocation" ("idDriver", lat, lng, location)
+    VALUES (
+        ${driverId},
+        ${lat},
+        ${lng},
+        ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)
+    )
+    ON CONFLICT ("idDriver")
+    DO UPDATE SET
+        lat = EXCLUDED.lat,
+        lng = EXCLUDED.lng,
+        location = ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326),
+        "updatedAt" = NOW();
+    `;
 
     const route = await this.mapboxService.getRoute({
       fromLat: lat,
