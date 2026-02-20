@@ -61,6 +61,21 @@ export class TrackingGateway {
       data: {},
     });
 
+    await this.prisma.driverLocation.upsert({
+      where: { idDriver: driverId },
+      update: {
+        lat,
+        lng,
+        isOnline: true,
+      },
+      create: {
+        idDriver: driverId,
+        lat,
+        lng,
+        isOnline: true,
+      },
+    });
+
     this.server.to(`order-${orderId}`).emit('order:tracking', {
       driverId,
       lat,

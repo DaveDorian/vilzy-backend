@@ -7,8 +7,10 @@ import { ConfigModule } from '@nestjs/config';
 import { ProductsModule } from './modules/products/products.module';
 import { RestaurantModule } from './modules/restaurant/restaurant.module';
 import { OrdersModule } from './modules/orders/orders.module';
-import { TrackingGateway } from './tracking/tracking.gateway';
-import { TrackingModule } from './tracking/tracking.module';
+import { TrackingGateway } from './modules/tracking/tracking.gateway';
+import { TrackingModule } from './modules/tracking/tracking.module';
+import { DispatchService } from './modules/dispatch/dispatch.service';
+import { DispatchModule } from './modules/dispatch/dispatch.module';
 
 @Module({
   imports: [
@@ -19,8 +21,9 @@ import { TrackingModule } from './tracking/tracking.module';
     RestaurantModule,
     OrdersModule,
     TrackingModule,
+    DispatchModule,
   ],
   controllers: [AppController],
-  providers: [AppService, TrackingGateway],
+  providers: [AppService, TrackingGateway, DispatchService],
 })
 export class AppModule {}

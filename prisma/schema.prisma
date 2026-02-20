@@ -66,6 +66,8 @@ model User {
   idTenant String
   tenant Tenant @relation(fields: [idTenant],references: [idTenant])
 
+  drivers DriverLocation[]
+
 }
 
 model RefreshToken {
@@ -160,4 +162,18 @@ model OrderItem {
 
   order Order @relation(fields: [idOrder],references: [idOrder])
   product Product @relation(fields: [idProduct],references: [idProduct])
+}
+
+model DriverLocation {
+  idDriverLocation String @id @default(uuid())
+  idDriver String @unique
+  driver User @relation(fields: [idDriver],references: [idUser])
+
+  lat Float
+  lng Float
+  isOnline Boolean @default(true)
+
+  updatedAt DateTime @updatedAt
+
+  @@index([lat,lng])
 }

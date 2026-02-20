@@ -6,10 +6,14 @@ import {
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { DispatchService } from '../dispatch/dispatch.service';
 
 @Injectable()
 export class OrdersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private dispatchService: DispatchService,
+  ) {}
 
   async create(tenantId: string, customerId: string, dto: CreateOrderDto) {
     const restaurant = await this.prisma.restaurant.findFirst({
@@ -73,6 +77,17 @@ export class OrdersService {
         status: 'ASSIGNED',
       },
     });
+  }
+
+  async markReady(tenantId: string, orderId: string) {
+    const order = await this.prisma.order.update({
+      where: { idOrder: orderId },
+      data: { status: 'READY' },
+    });
+
+    await this.dispatchService.autoAssignDriver(orderId, tenantId);
+
+    return order;
   }
 
   findAll() {
