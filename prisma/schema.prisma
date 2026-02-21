@@ -21,6 +21,11 @@ enum Role {
   CUSTOMER
 }
 
+enum TenantType {
+  MARKETPLACE
+  WHITE_LABEL
+}
+
 enum OrderStatus {
   CREATED
   PENDING
@@ -35,16 +40,58 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum TransactionType {
+  COMMISSION
+  SUBSCRIPTION_PAYMENT
+  ADJUSTMENT
+}
+
 model Tenant{
   idTenant String @id @default(uuid())
   name String
+  type TenantType
+
+  idSubscriptionPlan String
+  subscriptionPlan SubscriptionPlan @relation(fields: [idSubscriptionPlan],references: [idSubscriptionPlan])
+
+  commissionRate Float
+  allowOwnDrivers Boolean @default(false)
   isActive Boolean @default(true)
+
   users User[]
   restaurants Restaurant[]
   orders Order[]
+  tenantTransactions TenantTransaction[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model SubscriptionPlan {
+  idSubscriptionPlan String @id @default(uuid())
+  name String
+  monthlyPrice Float
+  commissionRate Float
+  allowWhiteLabel Boolean
+  allowOwnDrivers Boolean
+  dispatchPriority Int @default(0)
+
+  tenants Tenant[]
+}
+
+model TenantTransaction {
+  idTenantTransaction String @id @default(uuid())
+
+  idTenant String
+  tenant Tenant @relation(fields: [idTenant],references: [idTenant])
+
+  idOrder String?
+  amount Float
+  type TransactionType
+
+  createdAt DateTime @default(now())
+
+  @@index([idTenant])
 }
 
 model User {
@@ -58,6 +105,7 @@ model User {
   isActive Boolean @default(true)
   isOnline Boolean @default(false)
   isAvailable Boolean @default(true)
+  isShared Boolean @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   tokens RefreshToken[]
@@ -139,9 +187,14 @@ model Order {
   tenant Tenant @relation(fields: [idTenant],references: [idTenant])
   
   status OrderStatus @default(CREATED)
+
+  pickupLat Float
+  pickupLng Float
   
-  serviceFee Float?
-  deliveryFee Float?
+  commissionAmount Float?
+  driverEarning Float?
+  platformEarning Float?
+
   subtotal Float
   discount Float?
   total Float

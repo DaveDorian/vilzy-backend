@@ -32,7 +32,6 @@ export class OrdersService {
     const order = await this.prisma.order.create({
       data: {
         idRestaurant: dto.idRestaurant,
-        deliveryFee: dto.deliveryFee,
         subtotal: dto.subtotal,
         total: dto.total,
         deliveryAddress: dto.deliveryAddress,
@@ -41,7 +40,18 @@ export class OrdersService {
         idCustomer: customerId,
         idTenant: tenantId,
       },
+      select: {
+        idOrder: true,
+        idTenant: true,
+        tenant: {
+          select: {
+            subscriptionPlan: true,
+          },
+        },
+      },
     });
+
+    const priority = 100 - order.tenant.subscriptionPlan.dispatchPriority;
 
     await this.dispatchQueue.add(
       'dispatch-order',
@@ -50,6 +60,7 @@ export class OrdersService {
         tenantId: order.idTenant,
       },
       {
+        priority,
         attempts: 5,
         backoff: {
           type: 'exponential',

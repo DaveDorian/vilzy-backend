@@ -1,12 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { TrackingGateway } from '../tracking/tracking.gateway';
+import { Queue } from 'bullmq';
 
 @Injectable()
 export class DispatchService {
   constructor(
     private prisma: PrismaService,
     private trackingGateway: TrackingGateway,
+    private dispatchQueue: Queue,
   ) {}
 
   async autoAssignDriver(orderId: string, tenantId: string) {
@@ -132,5 +134,19 @@ export class DispatchService {
     });
   }
 
-  async rejectOrder(params: { orderId: string; driverId: string }) {}
+  async rejectOrder(params: { orderId: string; driverId: string }) {
+    await this.prisma.order.update({
+      where: { idOrder: params.orderId },
+      data: {
+        status: 'SEARCHING_DRIVER',
+        offeredDriverId: null,
+        offerExpiresAt: null,
+      },
+    });
+
+    await this.dispatchQueue.add('dispatch-order', {
+      orderId: params.orderId,
+      driverId: params.driverId,
+    });
+  }
 }
