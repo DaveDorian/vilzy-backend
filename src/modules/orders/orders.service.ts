@@ -7,12 +7,15 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DispatchService } from '../dispatch/dispatch.service';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 @Injectable()
 export class OrdersService {
   constructor(
     private prisma: PrismaService,
     private dispatchService: DispatchService,
+    @InjectQueue('dispatch') private dispatchQueue: Queue,
   ) {}
 
   async create(tenantId: string, customerId: string, dto: CreateOrderDto) {
@@ -26,7 +29,7 @@ export class OrdersService {
     if (!restaurant)
       throw new ForbiddenException('Restaurant not foun in tenant');
 
-    return this.prisma.order.create({
+    const order = await this.prisma.order.create({
       data: {
         idRestaurant: dto.idRestaurant,
         deliveryFee: dto.deliveryFee,
@@ -39,6 +42,24 @@ export class OrdersService {
         idTenant: tenantId,
       },
     });
+
+    await this.dispatchQueue.add(
+      'dispatch-order',
+      {
+        orderId: order.idOrder,
+        tenantId: order.idTenant,
+      },
+      {
+        attempts: 5,
+        backoff: {
+          type: 'exponential',
+          delay: 3000,
+        },
+        removeOnComplete: true,
+      },
+    );
+
+    return order;
   }
 
   async findMyOrders(tenantId: string, userId: string) {

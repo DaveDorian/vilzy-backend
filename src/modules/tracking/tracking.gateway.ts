@@ -14,6 +14,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { TrackingService } from './tracking.service';
 import { UpdateLocationDto } from './dto/update-location.dto';
 import { JwtService } from '@nestjs/jwt';
+import { DispatchService } from '../dispatch/dispatch.service';
 
 @WebSocketGateway({
   cors: true,
@@ -26,6 +27,7 @@ export class TrackingGateway implements OnGatewayConnection {
     private prisma: PrismaService,
     private readonly trackingService: TrackingService,
     private jwtService: JwtService,
+    private dispatchService: DispatchService,
   ) {}
 
   async handleConnection(client: Socket) {
@@ -86,37 +88,13 @@ export class TrackingGateway implements OnGatewayConnection {
 
     const { driverId, orderId, lat, lng } = data;
 
-    const order = await this.prisma.order.findUnique({
-      where: { idOrder: orderId },
-    });
-
-    if (!order || !order.deliveryLat || !order.deliveryLng)
-      return { ok: false };
-
-    const distanceKm = haversineDistance(
+    const update = await this.trackingService.handleLocationUpdate({
+      orderId,
+      driverId,
+      tenantId: user.idTenant,
       lat,
       lng,
-      order.deliveryLat,
-      order.deliveryLng,
-    );
-
-    const etaMinutes = calculateETA(distanceKm);
-
-    await this.prisma.user.update({
-      where: { idUser: driverId },
-      data: {},
     });
-
-    await this.prisma.$executeRaw`
-    INSERT INTO "DriverLocation" ("idDriver", lat, lng, "isOnline", location)
-    VALUES (${driverId}, ${lat}, ${lng}, true, ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326))
-    ON CONFLICT ("idDriver") 
-    DO UPDATE SET 
-      lat = EXCLUDED.lat, 
-      lng = EXCLUDED.lng, 
-      location = EXCLUDED.location,
-      "isOnline" = true;
-  `;
 
     /*await this.prisma.driverLocation.upsert({
       where: { idDriver: driverId },
@@ -133,14 +111,7 @@ export class TrackingGateway implements OnGatewayConnection {
       },
     });*/
 
-    this.server.to(`order-${orderId}`).emit('order:tracking', {
-      driverId,
-      lat,
-      lng,
-      etaMinutes,
-      distanceKm,
-      timestamp: new Date(),
-    });
+    this.server.to(`order:${orderId}`).emit('order:tracking', update);
 
     return { ok: true };
   }
@@ -152,7 +123,7 @@ export class TrackingGateway implements OnGatewayConnection {
 
     if (user.role !== 'DRIVER') return { ok: false };
 
-    client.join(`driver-${user.sub}`);
+    client.join(`driver:${user.sub}`);
 
     return { joined: true };
   }
@@ -204,7 +175,7 @@ export class TrackingGateway implements OnGatewayConnection {
     @MessageBody() data: { orderId: string },
     @ConnectedSocket() client: Socket,
   ) {
-    client.leave(`order-${data.orderId}`);
+    client.leave(`order:${data.orderId}`);
     return { left: true };
   }
 }

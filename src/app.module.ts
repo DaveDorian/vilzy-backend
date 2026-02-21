@@ -15,10 +15,18 @@ import { TrackingService } from './modules/tracking/tracking.service';
 import { MapboxService } from './map/mapbox/mapbox.service';
 import { MapModule } from './map/map.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { BullModule } from '@nestjs/bullmq';
+import { QueueModule } from './modules/queue/queue.module';
 
 ScheduleModule.forRoot();
 @Module({
   imports: [
+    BullModule.forRoot({
+      connection: {
+        host: 'localhost',
+        port: 6379,
+      },
+    }),
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
     AuthModule,
@@ -28,6 +36,7 @@ ScheduleModule.forRoot();
     TrackingModule,
     DispatchModule,
     MapModule,
+    QueueModule,
   ],
   controllers: [AppController],
   providers: [

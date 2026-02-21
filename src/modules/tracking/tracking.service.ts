@@ -71,6 +71,7 @@ export class TrackingService {
       orderId,
       driverLocation: { lat, lng },
       etaMinutes,
+      distanceMeters: route.distanceMeters,
       polyline: route.polyline,
     };
   }

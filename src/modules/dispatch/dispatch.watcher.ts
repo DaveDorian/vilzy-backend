@@ -1,10 +1,15 @@
+import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
+import { Queue } from 'bullmq';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class DispatchWatcher {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @InjectQueue('dispatch') private dispatchQueue: Queue,
+  ) {}
 
   @Interval(5000)
   async checkExpiredOffers() {
@@ -23,6 +28,11 @@ export class DispatchWatcher {
           offeredDriverId: null,
           offerExpiresAt: null,
         },
+      });
+
+      await this.dispatchQueue.add('dispatch-order', {
+        orderId: order.idOrder,
+        tenantId: order.idTenant,
       });
     }
   }
