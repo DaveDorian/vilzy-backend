@@ -7,18 +7,17 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DispatchService } from '../dispatch/dispatch.service';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
+import { QueueService } from '../queue/queue.service';
 
 @Injectable()
 export class OrdersService {
   constructor(
     private prisma: PrismaService,
     private dispatchService: DispatchService,
-    @InjectQueue('dispatch') private dispatchQueue: Queue,
+    private queueService: QueueService,
   ) {}
 
-  async create(tenantId: string, customerId: string, dto: CreateOrderDto) {
+  async createOrder(tenantId: string, customerId: string, dto: CreateOrderDto) {
     const restaurant = await this.prisma.restaurant.findFirst({
       where: {
         idRestaurant: dto.idRestaurant,
@@ -37,6 +36,8 @@ export class OrdersService {
         deliveryAddress: dto.deliveryAddress,
         deliveryLat: dto.deliveryLat!,
         deliveryLng: dto.deliveryLng!,
+        pickupLat: dto.deliveryLat!,
+        pickupLng: dto.deliveryLng!,
         idCustomer: customerId,
         idTenant: tenantId,
       },
@@ -51,7 +52,19 @@ export class OrdersService {
       },
     });
 
-    const priority = 100 - order.tenant.subscriptionPlan.dispatchPriority;
+    await this.queueService.getDispatchQueue().add('dispatch-order', {
+      orderId: order.idOrder,
+    });
+
+    await this.queueService.getDispatchQueue().add(
+      'redispatch-order',
+      {
+        orderId: order.idOrder,
+      },
+      { delay: 15000 },
+    );
+
+    /*const priority = 100 - order.tenant.subscriptionPlan.dispatchPriority;
 
     await this.dispatchQueue.add(
       'dispatch-order',
@@ -68,7 +81,7 @@ export class OrdersService {
         },
         removeOnComplete: true,
       },
-    );
+    );*/
 
     return order;
   }

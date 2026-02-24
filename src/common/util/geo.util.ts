@@ -1,3 +1,11 @@
+export function sortByDistance(drivers: any, lat: number, lng: number) {
+  return drivers.sort((a: any, b: any) => {
+    const d1 = haversineDistance(lat, lng, a.lat, a.lng);
+    const d2 = haversineDistance(lat, lng, b.lat, b.lng);
+    return d1 - d2;
+  });
+}
+
 export function haversineDistance(
   lat1: number,
   lon1: number,

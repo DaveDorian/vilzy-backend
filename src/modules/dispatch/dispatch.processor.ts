@@ -1,20 +1,42 @@
 import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
-import { DispatchService } from '../dispatch/dispatch.service';
-import { Job } from 'bullmq';
+import { DispatchService } from './dispatch.service';
+import { Job, Worker } from 'bullmq';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import IORedis from 'ioredis';
 
 @Processor('dispatch')
 @Injectable()
-export class DispatchProcessor extends WorkerHost {
+export class DispatchProcessor {
+  private worker: Worker;
+
   constructor(
     private dispatchService: DispatchService,
     private prisma: PrismaService,
   ) {
-    super();
+    const connection = new IORedis({
+      host: 'localhost',
+      port: 6379,
+    });
+
+    this.worker = new Worker(
+      'dispatch',
+      async (job) => {
+        const { orderId } = job.data;
+
+        if (job.name === 'dispatch-order')
+          await this.dispatchService.matchOrder(orderId);
+
+        if (job.name === 'redispatch-order')
+          await this.dispatchService.handleRedispatch(orderId);
+
+        await this.dispatchService.matchOrder(orderId);
+      },
+      { connection: connection.options },
+    );
   }
 
-  async process(job: Job) {
+  /*async process(job: Job) {
     const { orderId, tenantId } = job.data;
 
     const order = await this.prisma.order.findUnique({
@@ -43,8 +65,8 @@ export class DispatchProcessor extends WorkerHost {
     return;
 
     //await this.dispatchService.autoAssignDriver(orderId, tenantId);
-  }
-
+  }*/
+  /*
   @OnWorkerEvent('failed')
   async onFailed(job: Job) {
     const { orderId } = job.data;
@@ -97,5 +119,5 @@ export class DispatchProcessor extends WorkerHost {
   private getSearchRadius(attempt: number): number {
     const radiusSteps = [3000, 5000, 8000, 12000];
     return radiusSteps[Math.min(attempt, radiusSteps.length - 1)];
-  }
+  }*/
 }

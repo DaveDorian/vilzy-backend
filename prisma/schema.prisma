@@ -38,6 +38,7 @@ enum OrderStatus {
   PICKED_UP
   DELIVERED
   CANCELLED
+  FAILED
 }
 
 enum TransactionType {
@@ -208,6 +209,8 @@ model Order {
 
   offerExpiresAt DateTime?
   offeredDriverId String?
+
+  dispatchAttempts Int @default(0)
 
 
   orderItem OrderItem []
