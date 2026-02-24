@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { TrackingGateway } from '../tracking/tracking.gateway';
 import { Queue } from 'bullmq';
-import { sortByDistance } from 'src/common/util/geo.util';
+import { haversineDistance, sortByDistance } from 'src/common/util/geo.util';
 
 @Injectable()
 export class DispatchService {
@@ -37,7 +37,6 @@ export class DispatchService {
       data: {
         status: 'PENDING',
         idDriver: null,
-        dispatchAttempts: { increment: 1 },
       },
     });
 
@@ -65,7 +64,7 @@ export class DispatchService {
 
     if (!drivers.length) return;
 
-    const sortedDrivers = sortByDistance(
+    const sortedDrivers = this.sortDriversIntelligently(
       drivers,
       order.pickupLat,
       order.pickupLng,
@@ -74,11 +73,14 @@ export class DispatchService {
     for (const driver of sortedDrivers) {
       const assigned = await this.tryAssign(order.idOrder, driver.idDriver);
       if (assigned) {
+        const attempts = order.dispatchAttempts + 1;
+        const delay = 15000 * Math.pow(2, attempts - 1);
+
         await this.dispatchQueue.add(
           'redispatch-order',
           { orderId: order.idOrder },
           {
-            delay: 15000,
+            delay: delay,
             jobId: `redispatch-${order.idOrder}`,
             removeOnComplete: true,
           },
@@ -111,6 +113,8 @@ export class DispatchService {
       data: {
         status: 'ASSIGNED',
         idDriver: driverId,
+        dispatchAttempts: { increment: 1 },
+        lastDispatchAt: new Date(),
       },
     });
 
@@ -274,6 +278,13 @@ export class DispatchService {
       },
     });
 
+    await this.prisma.user.update({
+      where: { idUser: params.driverId },
+      data: {
+        rejectionCount: { increment: 1 },
+      },
+    });
+
     await this.dispatchQueue.remove(`redispatch-${params.orderId}`);
 
     await this.dispatchQueue.add('dispatch-order', { orderId: params.orderId });
@@ -290,5 +301,33 @@ export class DispatchService {
       orderId: params.orderId,
       driverId: params.driverId,
     });*/
+  }
+
+  async calculateDriverScore(driver: any, distance: number) {
+    const normalizedDistance = 1 / (1 + distance);
+
+    const ratingNormalized = driver.rating / 5;
+
+    const rejectionPenalty = driver.rejectionCount * 0.02;
+
+    const behaviorScore =
+      driver.acceptanceRate * 0.5 + ratingNormalized * 0.4 - rejectionPenalty;
+
+    const finalScore = normalizedDistance * 0.6 + behaviorScore * 0.4;
+
+    return finalScore;
+  }
+
+  private sortDriversIntelligently(drivers: any, lat: number, lng: number) {
+    return drivers
+      .map((driver: any) => {
+        const distance = haversineDistance(lat, lng, driver.lat, driver.lng);
+
+        const score = this.calculateDriverScore(driver, distance);
+
+        return { driver, score };
+      })
+      .sort((a: any, b: any) => b.score - a.score)
+      .map((item: any) => item.driver);
   }
 }
