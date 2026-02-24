@@ -4,6 +4,7 @@
 /build
 /postgres
 /src/generated
+google-services.json
 
 # Logs
 logs

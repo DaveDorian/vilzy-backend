@@ -47,13 +47,16 @@ enum TransactionType {
   ADJUSTMENT
 }
 
+enum PlanType {
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
 model Tenant{
   idTenant String @id @default(uuid())
   name String
   type TenantType
-
-  idSubscriptionPlan String
-  subscriptionPlan SubscriptionPlan @relation(fields: [idSubscriptionPlan],references: [idSubscriptionPlan])
 
   commissionRate Float
   allowOwnDrivers Boolean @default(false)
@@ -66,18 +69,25 @@ model Tenant{
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  subscriptionPlans SubscriptionPlan[]
 }
 
 model SubscriptionPlan {
   idSubscriptionPlan String @id @default(uuid())
+  idTenant String @unique
   name String
   monthlyPrice Float
   commissionRate Float
   allowWhiteLabel Boolean
   allowOwnDrivers Boolean
   dispatchPriority Int @default(0)
+  active Boolean @default(true)
+  expiresAt DateTime
+  plan PlanType
 
-  tenants Tenant[]
+  tenant Tenant @relation(fields: [idTenant],references: [idTenant])
+
 }
 
 model TenantTransaction {
@@ -115,6 +125,7 @@ model User {
   acceptanceRate Float? @default(1)
   rejectionCount Int? @default(0)
   cooldownUntil DateTime?
+  fcmToken String?
 
 
   restaurant Restaurant? @relation("RestaurantOwner",fields: [idRestaurant],references: [idRestaurant])

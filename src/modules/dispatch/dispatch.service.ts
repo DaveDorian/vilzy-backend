@@ -3,6 +3,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { TrackingGateway } from '../tracking/tracking.gateway';
 import { Queue } from 'bullmq';
 import { haversineDistance, sortByDistance } from 'src/common/util/geo.util';
+import { FirebaseService } from '../notifications/firebase.service';
 
 @Injectable()
 export class DispatchService {
@@ -10,9 +11,15 @@ export class DispatchService {
     private prisma: PrismaService,
     private trackingGateway: TrackingGateway,
     private dispatchQueue: Queue,
+    private firebaseService: FirebaseService,
   ) {}
 
   private readonly RADIUS_STEPS = [2, 4, 6, 10, 15];
+  private readonly PLAN_PRIORITY = {
+    BASIC: 1,
+    PRO: 2,
+    ENTERPRISE: 3,
+  };
 
   async handleRedispatch(orderId: string) {
     const order = await this.prisma.order.findUnique({
@@ -62,6 +69,13 @@ export class DispatchService {
 
     if (!order || order.status !== 'PENDING') return;
 
+    const subscription = await this.prisma.subscriptionPlan.findUnique({
+      where: {
+        idTenant: order?.idTenant,
+      },
+    });
+
+    const planPriority = this.PLAN_PRIORITY[subscription?.plan ?? 'BASIC'];
     const attemptIndex = order.dispatchAttempts;
     const radius = this.RADIUS_STEPS[attemptIndex] ?? 15;
 
@@ -82,10 +96,20 @@ export class DispatchService {
       nearbyDrivers,
       order.pickupLat,
       order.pickupLng,
+      planPriority,
     );
 
     for (const driver of sortedDrivers) {
       const assigned = await this.tryAssign(order.idOrder, driver.idDriver);
+
+      await this.firebaseService.sendToDriver(driver.fcmToken, {
+        title: 'Nueva orden disponible',
+        body: 'Tienes 15 segundos para aceptar',
+        data: {
+          orderId,
+        },
+      });
+
       if (assigned) {
         const attempts = order.dispatchAttempts + 1;
         const delay = 15000 * Math.pow(2, attempts - 1);
@@ -334,7 +358,11 @@ export class DispatchService {
     });*/
   }
 
-  async calculateDriverScore(driver: any, distance: number) {
+  async calculateDriverScore(
+    driver: any,
+    distance: number,
+    tenantPriority: number,
+  ) {
     const normalizedDistance = 1 / (1 + distance);
 
     const ratingNormalized = driver.rating / 5;
@@ -346,15 +374,26 @@ export class DispatchService {
 
     const finalScore = normalizedDistance * 0.6 + behaviorScore * 0.4;
 
-    return finalScore;
+    const priorityBoost = tenantPriority * 0.1;
+
+    return finalScore + priorityBoost;
   }
 
-  private sortDriversIntelligently(drivers: any, lat: number, lng: number) {
+  private sortDriversIntelligently(
+    drivers: any,
+    lat: number,
+    lng: number,
+    tenantPriority: number,
+  ) {
     return drivers
       .map((driver: any) => {
         const distance = haversineDistance(lat, lng, driver.lat, driver.lng);
 
-        const score = this.calculateDriverScore(driver, distance);
+        const score = this.calculateDriverScore(
+          driver,
+          distance,
+          tenantPriority,
+        );
 
         return { driver, score };
       })
