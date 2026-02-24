@@ -12,6 +12,8 @@ export class DispatchService {
     private dispatchQueue: Queue,
   ) {}
 
+  private readonly RADIUS_STEPS = [2, 4, 6, 10, 15];
+
   async handleRedispatch(orderId: string) {
     const order = await this.prisma.order.findUnique({
       where: { idOrder: orderId },
@@ -60,12 +62,24 @@ export class DispatchService {
 
     if (!order || order.status !== 'PENDING') return;
 
+    const attemptIndex = order.dispatchAttempts;
+    const radius = this.RADIUS_STEPS[attemptIndex] ?? 15;
+
     const drivers = await this.getAvailableDrivers(order.idTenant);
 
     if (!drivers.length) return;
 
-    const sortedDrivers = this.sortDriversIntelligently(
+    const nearbyDrivers = this.filterDriversByRadius(
       drivers,
+      order.pickupLat,
+      order.pickupLng,
+      radius,
+    );
+
+    if (!nearbyDrivers.length) return;
+
+    const sortedDrivers = this.sortDriversIntelligently(
+      nearbyDrivers,
       order.pickupLat,
       order.pickupLng,
     );
@@ -100,6 +114,7 @@ export class DispatchService {
       where: {
         idTenant: tenantId,
         isAvailable: true,
+        OR: [{ cooldownUntil: null }, { cooldownUntil: { lt: new Date() } }],
       },
     });
   }
@@ -227,6 +242,14 @@ export class DispatchService {
 
     if (order.idDriver !== params.driverId) return;
 
+    await this.prisma.user.update({
+      where: { idUser: params.driverId },
+      data: {
+        rejectionCount: 0,
+        acceptanceRate: {},
+      },
+    });
+
     await this.prisma.order.update({
       where: { idOrder: params.orderId },
       data: {
@@ -266,22 +289,30 @@ export class DispatchService {
       where: { idOrder: params.orderId },
     });
 
-    if (!order) return;
+    if (!order || order.idDriver !== params.driverId) return;
 
-    if (order.idDriver !== params.driverId) return;
+    const driver = await this.prisma.user.update({
+      where: { idUser: params.driverId },
+      data: {
+        rejectionCount: { increment: 1 },
+      },
+    });
+
+    if (driver.rejectionCount! + 1 >= 3) {
+      await this.prisma.user.update({
+        where: { idUser: params.driverId },
+        data: {
+          cooldownUntil: new Date(Date.now() + 5 * 60 * 1000),
+          rejectionCount: 0,
+        },
+      });
+    }
 
     await this.prisma.order.update({
       where: { idOrder: params.orderId },
       data: {
         status: 'PENDING',
         idDriver: null,
-      },
-    });
-
-    await this.prisma.user.update({
-      where: { idUser: params.driverId },
-      data: {
-        rejectionCount: { increment: 1 },
       },
     });
 
@@ -329,5 +360,17 @@ export class DispatchService {
       })
       .sort((a: any, b: any) => b.score - a.score)
       .map((item: any) => item.driver);
+  }
+
+  private filterDriversByRadius(
+    drivers: any,
+    lat: number,
+    lng: number,
+    radiusKm: number,
+  ) {
+    return drivers.filter((driver: any) => {
+      const distance = haversineDistance(lat, lng, driver.lat, driver.lng);
+      return distance <= radiusKm;
+    });
   }
 }

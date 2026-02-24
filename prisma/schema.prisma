@@ -114,6 +114,7 @@ model User {
   rating Float? @default(5)
   acceptanceRate Float? @default(1)
   rejectionCount Int? @default(0)
+  cooldownUntil DateTime?
 
 
   restaurant Restaurant? @relation("RestaurantOwner",fields: [idRestaurant],references: [idRestaurant])
