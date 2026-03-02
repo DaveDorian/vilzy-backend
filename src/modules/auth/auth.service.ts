@@ -131,4 +131,29 @@ export class AuthService {
       throw new Error('Invalid refresh token');
     }
   }
+
+  async logout(userId: string, deviceId: string) {
+    await this.prisma.refreshToken.updateMany({
+      where: {
+        idUser: userId,
+        deviceId,
+        revoked: false,
+      },
+      data: { revoked: true },
+    });
+
+    return { message: 'Logged out successfully' };
+  }
+
+  async logoutAllSessions(userId: string) {
+    await this.prisma.refreshToken.updateMany({
+      where: {
+        idUser: userId,
+        revoked: false,
+      },
+      data: { revoked: true },
+    });
+
+    return { message: 'Logged out from all sessions successfully' };
+  }
 }
