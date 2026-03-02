@@ -1,12 +1,23 @@
-import { NestFactory, Reflector } from '@nestjs/core';
+import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import { RolesGuard } from './common/guards/roles.guard';
+import { ResponseInterceptor } from './shared/interceptors/response.interceptors';
+import { GlobalExceptionFilter } from './shared/filters/http-exception.filter';
+import { LoggingInterceptor } from './shared/interceptors/logging.interceptor';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  app.useGlobalGuards(new RolesGuard(app.get(Reflector)));
+  const config = new DocumentBuilder()
+    .setTitle('Vilzy API')
+    .setDescription('API documentation for NestJS application')
+    .setVersion('1.0')
+    .addTag('nestjs')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('docs', app, document);
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -15,6 +26,13 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
+  app.useGlobalInterceptors(
+    new ResponseInterceptor(),
+    new LoggingInterceptor(),
+  );
+
+  app.useGlobalFilters(new GlobalExceptionFilter());
 
   await app.listen(process.env.PORT ?? 3000);
 }

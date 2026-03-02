@@ -1,164 +1,134 @@
-import {
-  ForbiddenException,
-  Inject,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
-import { UserRepository } from 'src/domain/repositories/user.repository';
+import { PrismaService } from 'src/infrastructure/prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
-import { RefreshDto } from './dto/refresh.dto';
-import { User } from 'src/generated/prisma/client';
+import * as bcrypt from 'bcrypt';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class AuthService {
   constructor(
-    @Inject('UserRepository')
-    private userRepository: UserRepository,
-    private jwtService: JwtService,
+    private readonly jwtService: JwtService,
+    private readonly prisma: PrismaService,
   ) {}
 
-  private async getTokens(user: User) {
+  async login(dto: LoginDto) {
+    const { email, password, tenantId } = dto;
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        email,
+        idTenant: tenantId,
+      },
+      include: {
+        tenant: true,
+      },
+    });
+
+    if (!user) throw new Error('Invalid credentials');
+
+    if (!user.isActive) throw new Error('User is inactive');
+
+    if (!user.tenant.isActive) throw new Error('Tenant is inactive');
+
+    const passwordMatch = await bcrypt.compare(password, user.password);
+
+    if (!passwordMatch) throw new Error('Invalid credentials');
+
+    const deviceId = uuidv4();
+
     const payload = {
       sub: user.idUser,
-      email: user.email,
-      role: user.role,
       tenantId: user.idTenant,
+      role: user.role,
+      deviceId,
     };
-    const [accessToken, refreshToken] = await Promise.all([
-      this.jwtService.signAsync(payload, {
-        secret: process.env.JWT_ACCESS_SECRET,
-        expiresIn: '15m',
-      }),
-      this.jwtService.signAsync(payload, {
-        secret: process.env.JWT_REFRESH_SECRET,
-        expiresIn: '7d',
-      }),
-    ]);
 
-    return {
-      accessToken,
-      refreshToken,
-    };
+    const accessToken = await this.jwtService.signAsync(payload);
+
+    const refreshToken = await this.jwtService.signAsync(payload, {
+      secret: process.env.JWT_REFRESH_SECRET,
+      expiresIn: '7d',
+    });
+
+    await this.saveRefreshToken(user.idUser, refreshToken, deviceId);
+
+    return { accessToken, refreshToken };
   }
 
-  async getSessions(userId: string) {
-    return this.userRepository.getActiveSessions(userId);
-  }
-
-  private async saveSession(
+  private async saveRefreshToken(
     userId: string,
     refreshToken: string,
     deviceId: string,
-    userAgent?: string,
-    ipAddress?: string,
   ) {
     const hashedToken = await bcrypt.hash(refreshToken, 10);
-    const decoded = this.jwtService.decode(refreshToken) as any;
-    const expiresAt = new Date(decoded.exp * 1000);
 
-    await this.userRepository.saveRefreshToken(
-      userId,
-      hashedToken,
-      expiresAt,
-      deviceId,
-      userAgent,
-      ipAddress,
-    );
+    await this.prisma.refreshToken.create({
+      data: {
+        idUser: userId,
+        token: hashedToken,
+        deviceId,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      },
+    });
   }
 
-  async refreshTokens(dto: RefreshDto) {
-    const decoded = this.jwtService.verify(dto.refreshToken, {
-      secret: process.env.JWT_REFRESH_SECRET,
-    });
+  async refreshToken(oldRefreshToken: string) {
+    try {
+      const payload = await this.jwtService.verifyAsync(oldRefreshToken, {
+        secret: process.env.JWT_REFRESH_SECRET,
+      });
 
-    const sessions = await this.userRepository.refreshTokens(
-      decoded.sub,
-      dto.deviceId,
-    );
+      const { sub, tenantId, role, deviceId } = payload;
 
-    let validSession = null;
+      const storedToken = await this.prisma.refreshToken.findFirst({
+        where: {
+          idUser: sub,
+          deviceId,
+          revoked: false,
+        },
+      });
 
-    for (const session of sessions) {
-      const match = await bcrypt.compare(dto.refreshToken, session.token);
-      if (match) {
-        validSession = session;
-        break;
+      if (!storedToken) {
+        await this.prisma.refreshToken.updateMany({
+          where: {
+            idUser: sub,
+          },
+          data: { revoked: true },
+        });
+
+        throw new Error('Invalid refresh token');
       }
+
+      if (storedToken.expiresAt < new Date())
+        throw new Error('Refresh token expired');
+
+      const tokenMatch = await bcrypt.compare(
+        oldRefreshToken,
+        storedToken.token,
+      );
+
+      if (!tokenMatch) throw new Error('Invalid refresh token');
+
+      await this.prisma.refreshToken.update({
+        where: { idRefreshToken: storedToken.idRefreshToken },
+        data: { revoked: true },
+      });
+
+      const newPayload = { sub, tenantId, role, deviceId };
+
+      const newAccessToken = await this.jwtService.signAsync(newPayload);
+
+      const newRefreshToken = await this.jwtService.signAsync(newPayload, {
+        secret: process.env.JWT_REFRESH_SECRET,
+        expiresIn: '7d',
+      });
+
+      await this.saveRefreshToken(sub, newRefreshToken, deviceId);
+
+      return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+    } catch (error) {
+      throw new Error('Invalid refresh token');
     }
-
-    if (!validSession) {
-      throw new ForbiddenException('Invalid refresh token');
-    }
-
-    if (validSession.expiresAt < new Date()) {
-      throw new ForbiddenException('Token expired');
-    }
-
-    if (validSession.revoked) {
-      await this.userRepository.updateRefreshTokenMany(decoded.sub);
-
-      throw new ForbiddenException('Session compromised');
-    }
-
-    await this.userRepository.updateRefreshToken(validSession.idRefreshToken);
-
-    const tokens = await this.getTokens(decoded);
-
-    await this.saveSession(decoded.sub, tokens.refreshToken, dto.deviceId);
-
-    return tokens;
-  }
-
-  async validateUser(email: string, password: string) {
-    const user = await this.userRepository.findByEmail(email);
-
-    if (!user) throw new UnauthorizedException();
-
-    const valid = await bcrypt.compare(password, user.password!);
-
-    if (!valid) throw new UnauthorizedException();
-
-    return user;
-  }
-
-  async login(dto: LoginDto, userAgent?: string, ip?: string) {
-    const user = await this.validateUser(dto.email, dto.password);
-
-    const tokens = await this.getTokens({
-      name: user.name,
-      idUser: user.id!,
-      surname: user.surname,
-      ci: user.ci,
-      email: user.email,
-      password: user.password!,
-      role: user.role,
-      isActive: user.isActive!,
-      createdAt: user.createdAt!,
-      updatedAt: user.updatedAt!,
-      idRestaurant: user.idRestaurant!,
-      idTenant: user.idTenant!,
-    });
-
-    //Save session
-    await this.saveSession(
-      user.id!,
-      tokens.refreshToken,
-      dto.deviceId,
-      userAgent,
-      ip,
-    );
-
-    return tokens;
-  }
-
-  //revokeSession
-  async logout(tokenId: string) {
-    await this.userRepository.updateRefreshToken(tokenId);
-  }
-
-  async logoutAll(userId: string) {
-    await this.userRepository.updateRefreshTokenMany(userId);
   }
 }
