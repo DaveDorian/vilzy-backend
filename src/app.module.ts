@@ -5,6 +5,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './modules/auth/auth.module';
 import { PrismaModule } from './infrastructure/prisma/prisma.module';
 import { TenantModule } from './modules/tenant/tenant.module';
+import { UsersModule } from './modules/users/users.module';
 
 ScheduleModule.forRoot();
 @Module({
@@ -24,6 +25,7 @@ ScheduleModule.forRoot();
     AuthModule,
     PrismaModule,
     TenantModule,
+    UsersModule,
   ],
   controllers: [],
   providers: [],

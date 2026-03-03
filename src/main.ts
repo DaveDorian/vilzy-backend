@@ -1,9 +1,9 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import { ResponseInterceptor } from './shared/interceptors/response.interceptors';
-import { GlobalExceptionFilter } from './shared/filters/http-exception.filter';
-import { LoggingInterceptor } from './shared/interceptors/logging.interceptor';
+import { ResponseInterceptor } from './common/interceptors/response.interceptors';
+import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
