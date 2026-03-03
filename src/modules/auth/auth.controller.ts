@@ -5,6 +5,8 @@ import { Throttle } from '@nestjs/throttler';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtStrategy } from './guards/jwt-auth.guard';
+import { CurrentUser } from 'src/common/decorators/current-user.decorator';
+import { RequestUser } from 'src/common/interfaces/request-user.interface';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -24,15 +26,13 @@ export class AuthController {
 
   @UseGuards(JwtStrategy)
   @Post('logout')
-  logout(@Req() req: any) {
-    const { userId, deviceId } = req.user;
-    return this.authService.logout(userId, deviceId);
+  logout(@CurrentUser() user: RequestUser) {
+    return this.authService.logout(user.idUser, user.deviceId);
   }
 
   @UseGuards(JwtStrategy)
   @Post('logout-all')
-  logoutAll(@Req() req: any) {
-    const { userId } = req.user;
-    return this.authService.logoutAllSessions(userId);
+  logoutAll(@CurrentUser() user: RequestUser) {
+    return this.authService.logoutAllSessions(user.idUser);
   }
 }
