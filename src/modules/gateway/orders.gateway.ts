@@ -11,6 +11,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { DriverResponseService } from '../driver-response/driver-response.service';
 
 // ─── Eventos que el SERVER emite al cliente ───────────────────────────────────
 
@@ -41,17 +42,16 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
   server!: Server;
 
   private readonly logger = new Logger(OrdersGateway.name);
-
-  // Map de socketId → JwtPayload para conocer quién es cada socket
   private readonly connectedClients = new Map<
     string,
     { sub: string; role: string; idTenant: string }
   >();
-
-  // Map de driverId → socketId para encontrar al driver rápidamente
   private readonly driverSockets = new Map<string, string>();
 
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly driverResponseService: DriverResponseService,
+  ) {}
 
   // ─── Conexión: validar JWT ─────────────────────────────────────────────────
 
@@ -77,10 +77,10 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       this.logger.log(
-        `Client connected: ${client.id} | user: ${payload.sub} | role: ${payload.role}`,
+        `Connected: ${client.id} | user: ${payload.sub} | role: ${payload.role}`,
       );
     } catch (err) {
-      this.logger.warn(`Rejected connection: ${client.id} | ${err}`);
+      this.logger.warn(`Rejected: ${client.id} | ${err}`);
       client.emit(ServerEvent.ERROR, { message: 'Authentication failed' });
       client.disconnect();
     }
@@ -92,11 +92,10 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.driverSockets.delete(user.sub);
     }
     this.connectedClients.delete(client.id);
-    this.logger.log(`Client disconnected: ${client.id}`);
+    this.logger.log(`Disconnected: ${client.id}`);
   }
 
-  // ─── Cliente se une a la sala de un pedido ─────────────────────────────────
-  // La sala 'order:{idOrder}' recibe todos los eventos de ese pedido
+  // ─── Unirse a sala del pedido ──────────────────────────────────────────────
 
   @SubscribeMessage(ClientEvent.JOIN_ORDER_ROOM)
   handleJoinOrder(
@@ -116,7 +115,8 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.leave(`order:${data.idOrder}`);
   }
 
-  // ─── Driver acepta la oferta ───────────────────────────────────────────────
+  // ─── Driver acepta oferta via WS ───────────────────────────────────────────
+  // Delega a DriverResponseService — misma lógica que el endpoint HTTP
 
   @SubscribeMessage(ClientEvent.DRIVER_ACCEPT)
   async handleDriverAccept(
@@ -127,30 +127,53 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!user || user.role !== 'DRIVER') {
       throw new WsException('Only drivers can accept orders');
     }
-    // Emitir al DispatchService (via evento interno)
-    client.emit('order:accept_ack', { idOrder: data.idOrder });
-    this.server
-      .to(`order:${data.idOrder}`)
-      .emit('order:driver_accepted', { idDriver: user.sub });
+
+    try {
+      const result = await this.driverResponseService.acceptOffer(
+        data.idOrder,
+        {
+          idUser: user.sub,
+          role: user.role,
+          tenantId: user.idTenant,
+          deviceId: '',
+        },
+      );
+      client.emit('order:accept_ack', result);
+    } catch (err) {
+      client.emit(ServerEvent.ERROR, { message: err });
+    }
   }
 
-  // ─── Driver rechaza la oferta ──────────────────────────────────────────────
+  // ─── Driver rechaza oferta via WS ──────────────────────────────────────────
 
   @SubscribeMessage(ClientEvent.DRIVER_REJECT)
-  handleDriverReject(
+  async handleDriverReject(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { idOrder: string },
+    @MessageBody() data: { idOrder: string; reason?: string },
   ) {
     const user = this.connectedClients.get(client.id);
     if (!user || user.role !== 'DRIVER') {
       throw new WsException('Only drivers can reject orders');
     }
-    this.server
-      .to(`order:${data.idOrder}`)
-      .emit('order:driver_rejected', { idDriver: user.sub });
+
+    try {
+      const result = await this.driverResponseService.rejectOffer(
+        data.idOrder,
+        { reason: data.reason },
+        {
+          idUser: user.sub,
+          role: user.role,
+          tenantId: user.idTenant,
+          deviceId: '',
+        },
+      );
+      client.emit('order:reject_ack', result);
+    } catch (err) {
+      client.emit(ServerEvent.ERROR, { message: err });
+    }
   }
 
-  // ─── Driver actualiza su ubicación ────────────────────────────────────────
+  // ─── Driver actualiza ubicación ────────────────────────────────────────────
 
   @SubscribeMessage(ClientEvent.UPDATE_LOCATION)
   handleLocationUpdate(
@@ -160,7 +183,6 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const user = this.connectedClients.get(client.id);
     if (!user || user.role !== 'DRIVER') return;
 
-    // Emitir a todos los que están en la sala del pedido (el customer)
     this.server.to(`order:${data.idOrder}`).emit(ServerEvent.DRIVER_LOCATION, {
       idDriver: user.sub,
       lat: data.lat,
@@ -169,7 +191,7 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
   }
 
-  // ─── Métodos que otros servicios usan para emitir eventos ─────────────────
+  // ─── Métodos de emisión usados por otros servicios ─────────────────────────
 
   emitOrderStatusUpdate(idOrder: string, status: string, extra?: object) {
     this.server.to(`order:${idOrder}`).emit(ServerEvent.ORDER_STATUS_UPDATED, {
@@ -193,11 +215,11 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
       total: number;
       expiresAt: Date;
     },
-  ) {
+  ): boolean {
     const socketId = this.driverSockets.get(idDriver);
     if (!socketId) {
-      this.logger.warn(`Driver ${idDriver} is not connected via WebSocket`);
-      return false; // El driver no está online en WS (puede recibir FCM en su lugar)
+      this.logger.warn(`Driver ${idDriver} not connected on WS`);
+      return false;
     }
     this.server.to(socketId).emit(ServerEvent.DRIVER_OFFER, offerData);
     return true;

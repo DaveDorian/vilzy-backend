@@ -10,6 +10,8 @@ import { RestaurantsModule } from './modules/restaurants/restaurants.module';
 import { ProductsModule } from './modules/products/products.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { DriverLocationModule } from './modules/driver-location/driver-location.module';
+import { DriverResponseService } from './modules/driver-response/driver-response.service';
+import { DriverResponseController } from './modules/driver-response/driver-response.controller';
 
 ScheduleModule.forRoot();
 @Module({
@@ -35,7 +37,7 @@ ScheduleModule.forRoot();
     OrdersModule,
     DriverLocationModule,
   ],
-  controllers: [],
-  providers: [],
+  controllers: [DriverResponseController],
+  providers: [DriverResponseService],
 })
 export class AppModule {}
