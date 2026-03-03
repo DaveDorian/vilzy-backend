@@ -6,6 +6,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { PrismaModule } from './infrastructure/prisma/prisma.module';
 import { TenantModule } from './modules/tenant/tenant.module';
 import { UsersModule } from './modules/users/users.module';
+import { RestaurantsModule } from './modules/restaurants/restaurants.module';
 
 ScheduleModule.forRoot();
 @Module({
@@ -26,6 +27,7 @@ ScheduleModule.forRoot();
     PrismaModule,
     TenantModule,
     UsersModule,
+    RestaurantsModule,
   ],
   controllers: [],
   providers: [],
