@@ -5,8 +5,6 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { JwtPayload } from '../auth/jwt-payload.interface';
 import {
   CreateOrderDto,
   CancelOrderDto,
@@ -15,7 +13,9 @@ import {
   VALID_TRANSITIONS,
 } from './dto/order.dto';
 import { v4 as uuid } from 'uuid';
+import { PrismaService } from 'src/infrastructure/prisma/prisma.service';
 import { DispatchService } from '../dispatch/dispatch.service';
+import { RequestUser } from 'src/common/interfaces/request-user.interface';
 
 @Injectable()
 export class OrdersService {
@@ -28,12 +28,12 @@ export class OrdersService {
 
   // ─── Crear pedido ───────────────────────────────────────────────────────────
 
-  async create(dto: CreateOrderDto, user: JwtPayload) {
+  async create(dto: CreateOrderDto, user: RequestUser) {
     // 1. Verificar que el restaurant pertenece al mismo tenant
     const restaurant = await this.prisma.restaurant.findFirst({
       where: {
         idRestaurant: dto.idRestaurant,
-        idTenant: user.idTenant,
+        idTenant: user.tenantId,
         isActive: true,
       },
     });
@@ -76,9 +76,9 @@ export class OrdersService {
       return tx.order.create({
         data: {
           idOrder: uuid(),
-          idCustomer: user.sub,
+          idCustomer: user.idUser,
           idRestaurant: dto.idRestaurant,
-          idTenant: user.idTenant,
+          idTenant: user.tenantId,
           status: OrderStatus.PENDING,
           deliveryAddress: dto.deliveryAddress,
           deliveryLat: dto.deliveryLat,
@@ -99,12 +99,12 @@ export class OrdersService {
     });
 
     this.logger.log(
-      `Order created: ${order.idOrder} | tenant: ${user.idTenant}`,
+      `Order created: ${order.idOrder} | tenant: ${user.tenantId}`,
     );
 
     // 6. Lanzar dispatch en background (no bloqueamos la respuesta al customer)
     this.dispatch
-      .startDispatch(order.idOrder, user.idTenant)
+      .startDispatch(order.idOrder, user.tenantId)
       .catch((err) =>
         this.logger.error(
           `Dispatch failed for order ${order.idOrder}: ${err.message}`,
@@ -116,13 +116,13 @@ export class OrdersService {
 
   // ─── Listar pedidos del customer autenticado ────────────────────────────────
 
-  async findMyOrders(user: JwtPayload, query: ListOrdersQueryDto) {
+  async findMyOrders(user: RequestUser, query: ListOrdersQueryDto) {
     const { page, limit, status } = query;
     const skip = (page! - 1) * limit!;
 
     const where = {
-      idCustomer: user.sub,
-      idTenant: user.idTenant,
+      idCustomer: user.idUser,
+      idTenant: user.tenantId,
       ...(status && { status }),
     };
 
@@ -148,13 +148,13 @@ export class OrdersService {
 
   async findByRestaurant(
     idRestaurant: string,
-    user: JwtPayload,
+    user: RequestUser,
     query: ListOrdersQueryDto,
   ) {
     // Verificar que el admin pertenece a ese restaurant
     if (user.role === 'RESTAURANT_ADMIN') {
       const isOwner = await this.prisma.user.findFirst({
-        where: { idUser: user.sub, idRestaurant },
+        where: { idUser: user.idUser, idRestaurant },
       });
       if (!isOwner)
         throw new ForbiddenException('You do not manage this restaurant');
@@ -165,7 +165,7 @@ export class OrdersService {
 
     const where = {
       idRestaurant,
-      idTenant: user.idTenant,
+      idTenant: user.tenantId,
       ...(status && { status }),
     };
 
@@ -189,13 +189,13 @@ export class OrdersService {
 
   // ─── Listar pedidos del driver autenticado ──────────────────────────────────
 
-  async findMyDriverOrders(user: JwtPayload, query: ListOrdersQueryDto) {
+  async findMyDriverOrders(user: RequestUser, query: ListOrdersQueryDto) {
     const { page, limit, status } = query;
     const skip = (page! - 1) * limit!;
 
     const where = {
-      idDriver: user.sub,
-      idTenant: user.idTenant,
+      idDriver: user.idUser,
+      idTenant: user.tenantId,
       ...(status && { status }),
     };
 
@@ -221,12 +221,12 @@ export class OrdersService {
 
   // ─── Listar todos los pedidos del tenant (TENANT_ADMIN / SUPER_ADMIN) ───────
 
-  async findByTenant(user: JwtPayload, query: ListOrdersQueryDto) {
+  async findByTenant(user: RequestUser, query: ListOrdersQueryDto) {
     const { page, limit, status } = query;
     const skip = (page! - 1) * limit!;
 
     const where = {
-      idTenant: user.idTenant,
+      idTenant: user.tenantId,
       ...(status && { status }),
     };
 
@@ -250,9 +250,9 @@ export class OrdersService {
 
   // ─── Obtener detalle de un pedido ───────────────────────────────────────────
 
-  async findOne(idOrder: string, user: JwtPayload) {
+  async findOne(idOrder: string, user: RequestUser) {
     const order = await this.prisma.order.findFirst({
-      where: { idOrder, idTenant: user.idTenant },
+      where: { idOrder, idTenant: user.tenantId },
       include: {
         orderItem: { include: { product: true } },
         restaurant: true,
@@ -266,12 +266,12 @@ export class OrdersService {
     if (!order) throw new NotFoundException('Order not found');
 
     // Customers solo pueden ver sus propios pedidos
-    if (user.role === 'CUSTOMER' && order.idCustomer !== user.sub) {
+    if (user.role === 'CUSTOMER' && order.idCustomer !== user.idUser) {
       throw new ForbiddenException('Access denied');
     }
 
     // Drivers solo pueden ver sus pedidos asignados
-    if (user.role === 'DRIVER' && order.idDriver !== user.sub) {
+    if (user.role === 'DRIVER' && order.idDriver !== user.idUser) {
       throw new ForbiddenException('Access denied');
     }
 
@@ -280,15 +280,15 @@ export class OrdersService {
 
   // ─── Cancelar pedido ────────────────────────────────────────────────────────
 
-  async cancel(idOrder: string, dto: CancelOrderDto, user: JwtPayload) {
+  async cancel(idOrder: string, dto: CancelOrderDto, user: RequestUser) {
     const order = await this.prisma.order.findFirst({
-      where: { idOrder, idTenant: user.idTenant },
+      where: { idOrder, idTenant: user.tenantId },
     });
 
     if (!order) throw new NotFoundException('Order not found');
 
     // Solo el customer dueño o un admin pueden cancelar
-    const isOwner = order.idCustomer === user.sub;
+    const isOwner = order.idCustomer === user.idUser;
     const isAdmin = ['TENANT_ADMIN', 'SUPER_ADMIN'].includes(user.role);
     if (!isOwner && !isAdmin)
       throw new ForbiddenException('You cannot cancel this order');
@@ -307,7 +307,7 @@ export class OrdersService {
     });
 
     this.logger.log(
-      `Order cancelled: ${idOrder} by user ${user.sub} | reason: ${dto.reason ?? 'none'}`,
+      `Order cancelled: ${idOrder} by user ${user.idUser} | reason: ${dto.reason ?? 'none'}`,
     );
 
     return updated;
