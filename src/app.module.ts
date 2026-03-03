@@ -4,6 +4,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './modules/auth/auth.module';
 import { PrismaModule } from './infrastructure/prisma/prisma.module';
+import { TenantModule } from './modules/tenant/tenant.module';
 
 ScheduleModule.forRoot();
 @Module({
@@ -22,6 +23,7 @@ ScheduleModule.forRoot();
     }),
     AuthModule,
     PrismaModule,
+    TenantModule,
   ],
   controllers: [],
   providers: [],
