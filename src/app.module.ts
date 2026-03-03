@@ -8,6 +8,7 @@ import { TenantModule } from './modules/tenant/tenant.module';
 import { UsersModule } from './modules/users/users.module';
 import { RestaurantsModule } from './modules/restaurants/restaurants.module';
 import { ProductsModule } from './modules/products/products.module';
+import { OrdersModule } from './modules/orders/orders.module';
 
 ScheduleModule.forRoot();
 @Module({
@@ -30,6 +31,7 @@ ScheduleModule.forRoot();
     UsersModule,
     RestaurantsModule,
     ProductsModule,
+    OrdersModule,
   ],
   controllers: [],
   providers: [],
