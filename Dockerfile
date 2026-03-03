@@ -4,6 +4,7 @@ WORKDIR /app
 
 # 1. Instalar dependencias
 COPY package*.json ./
+RUN rm -rf dist node_modules
 COPY prisma ./prisma/
 RUN npm install
 RUN npx prisma generate
