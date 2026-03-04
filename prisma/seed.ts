@@ -1,8 +1,13 @@
 // prisma/seed.ts
 import { PrismaClient, Role, TenantType } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import 'dotenv/config';
+import { PrismaPg } from '@prisma/adapter-pg';
 
-const prisma = new PrismaClient();
+const adapter = new PrismaPg({
+  connectionString: process.env.DATABASE_URL as string,
+});
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
   const adminEmail = 'admin@vilzy.com';
@@ -12,7 +17,7 @@ async function main() {
 
   // 1. Crear el Tenant Principal (Marketplace)
   const mainTenant = await prisma.tenant.upsert({
-    where: { idTenant: 'main-tenant-id', name: 'Vilzy Global' },
+    where: { idTenant: 'Vilzy Global' },
     update: {},
     create: {
       name: 'Vilzy Global',
