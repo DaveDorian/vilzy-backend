@@ -2,13 +2,7 @@
 import { PrismaClient, Role, TenantType } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL,
-    },
-  },
-} as any);
+const prisma = new PrismaClient();
 
 async function main() {
   const adminEmail = 'admin@vilzy.com';
