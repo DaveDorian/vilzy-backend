@@ -3,7 +3,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from 'src/infrastructure/prisma/prisma.service';
 import { ROLE_HIERARCHY } from '../auth/constants/role-hierarchy';
-import { Role } from 'src/generated/prisma/enums';
+import { Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { RequestUser } from 'src/common/interfaces/request-user.interface';
 
@@ -13,7 +13,7 @@ export class UsersService {
 
   async create(createUserDto: CreateUserDto, currenUser: RequestUser) {
     const creatorLevel = ROLE_HIERARCHY[currenUser.role as Role];
-    const targetLevel = ROLE_HIERARCHY[createUserDto.role];
+    const targetLevel = ROLE_HIERARCHY[createUserDto.role as Role];
 
     if (targetLevel >= creatorLevel) {
       throw new Error(

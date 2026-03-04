@@ -1,5 +1,5 @@
 // prisma/seed.ts
-import { PrismaClient, Role, TenantType } from 'src/generated/prisma/client';
+import { PrismaClient, Role, TenantType } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient({

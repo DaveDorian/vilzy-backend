@@ -15,7 +15,7 @@ import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { ChangeOrderStatusDto } from './dto/change-order-status.dto';
 import { AssignDriverDto } from './dto/assign-driver.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { Role } from 'src/generated/prisma/enums';
+import { Role } from '@prisma/client';
 
 @UseGuards(JwtStrategy)
 @Controller('orders')

@@ -11,7 +11,7 @@ import { RestaurantsService } from './restaurants.service';
 import { CreateRestaurantDto } from './dto/create-restaurant.dto';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { JwtStrategy } from '../auth/strategies/jwt.strategy';
-import { Role } from 'src/generated/prisma/enums';
+import { Role } from '@prisma/client';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { RequestUser } from 'src/common/interfaces/request-user.interface';

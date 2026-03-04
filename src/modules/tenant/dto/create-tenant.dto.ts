@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsNumber, IsString, Min } from 'class-validator';
-import { TenantType } from 'src/generated/prisma/enums';
+import { TenantType } from '@prisma/client';
 
 export class CreateTenantDto {
   @ApiProperty()

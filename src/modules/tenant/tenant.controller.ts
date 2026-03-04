@@ -12,7 +12,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { JwtStrategy } from '../auth/strategies/jwt.strategy';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { Role } from 'src/generated/prisma/client';
+import { Role } from '@prisma/client';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 

@@ -1,4 +1,4 @@
-import { Role } from 'src/generated/prisma/enums';
+import { Role } from '@prisma/client';
 
 export const ROLE_HIERARCHY: Record<Role, number> = {
   SUPER_ADMIN: 5,

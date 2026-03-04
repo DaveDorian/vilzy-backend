@@ -8,7 +8,7 @@ import { PrismaService } from 'src/infrastructure/prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { RequestUser } from 'src/common/interfaces/request-user.interface';
 import { ChangeOrderStatusDto } from './dto/change-order-status.dto';
-import { OrderStatus, Role } from 'src/generated/prisma/enums';
+import { OrderStatus, Role } from '@prisma/client';
 import { AssignDriverDto } from './dto/assign-driver.dto';
 
 @Injectable()
