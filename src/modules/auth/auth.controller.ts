@@ -4,9 +4,9 @@ import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
-import { JwtStrategy } from './guards/jwt-auth.guard';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { RequestUser } from 'src/common/interfaces/request-user.interface';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -24,15 +24,15 @@ export class AuthController {
     return this.authService.refreshToken(dto.refreshToken);
   }
 
-  @UseGuards(JwtStrategy)
+  @UseGuards(JwtAuthGuard)
   @Post('logout')
   logout(@CurrentUser() user: RequestUser) {
-    return this.authService.logout(user.idUser, user.deviceId);
+    return this.authService.logout(user.sub, user.deviceId);
   }
 
-  @UseGuards(JwtStrategy)
+  @UseGuards(JwtAuthGuard)
   @Post('logout-all')
   logoutAll(@CurrentUser() user: RequestUser) {
-    return this.authService.logoutAllSessions(user.idUser);
+    return this.authService.logoutAllSessions(user.sub);
   }
 }

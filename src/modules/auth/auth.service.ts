@@ -4,7 +4,6 @@ import { PrismaService } from 'src/infrastructure/prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
-import { tenantWhere } from 'src/common/utils/tenant-where.util';
 
 @Injectable()
 export class AuthService {
@@ -17,7 +16,7 @@ export class AuthService {
     const { email, password, tenantId } = dto;
 
     const user = await this.prisma.user.findFirst({
-      where: tenantWhere(tenantId, { email }),
+      where: { idTenant: tenantId, email },
       include: {
         tenant: true,
       },
@@ -38,6 +37,7 @@ export class AuthService {
     const payload = {
       sub: user.idUser,
       tenantId: user.idTenant,
+      email: user.email,
       role: user.role,
       deviceId,
     };

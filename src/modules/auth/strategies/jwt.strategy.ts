@@ -39,9 +39,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new ForbiddenException('Tenant is inactive');
 
     return {
-      idUser: user.idUser,
-      idTenant: user.idTenant,
+      sub: user.idUser,
+      tenantId: user.idTenant,
       role: user.role,
+      email: user.email,
       deviceId: payload.deviceId,
     };
   }

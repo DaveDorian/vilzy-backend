@@ -7,7 +7,6 @@ import {
   Param,
   Get,
 } from '@nestjs/common';
-import { JwtStrategy } from '../auth/guards/jwt-auth.guard';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { RequestUser } from 'src/common/interfaces/request-user.interface';
@@ -16,8 +15,9 @@ import { ChangeOrderStatusDto } from './dto/change-order-status.dto';
 import { AssignDriverDto } from './dto/assign-driver.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
-@UseGuards(JwtStrategy)
+@UseGuards(JwtAuthGuard)
 @Controller('orders')
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
@@ -57,9 +57,9 @@ export class OrdersController {
     return this.ordersService.completeOrder(idOrder, user);
   }
 
-  @Roles(Role.RESTAURANT_ADMIN, Role.CUSTOMER, Role.DRIVER)
+  @Roles(Role.SUPER_ADMIN, Role.RESTAURANT_ADMIN, Role.CUSTOMER, Role.DRIVER)
   @Get('my-orders')
-  getMyOrders(@CurrentUser() user: RequestUser) {
+  getMyOrders(@CurrentUser() user: any) {
     return this.ordersService.getMyOrders(user);
   }
 }

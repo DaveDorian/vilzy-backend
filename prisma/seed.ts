@@ -38,7 +38,7 @@ async function main() {
     create: {
       email: adminEmail,
       password: hashedPassword,
-      name: 'Super Admin',
+      name: 'Vilzy',
       surname: 'Vilzy',
       ci: '12345678',
       role: Role.SUPER_ADMIN, // Asegúrate que este sea el nombre en tu enum

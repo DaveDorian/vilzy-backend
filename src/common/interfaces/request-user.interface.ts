@@ -1,6 +1,7 @@
 export interface RequestUser {
-  idUser: string;
+  sub: string;
   tenantId: string;
+  email: string;
   role: string;
   deviceId: string;
 }

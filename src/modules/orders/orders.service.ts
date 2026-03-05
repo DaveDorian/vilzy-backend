@@ -16,7 +16,7 @@ export class OrdersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateOrderDto, user: RequestUser) {
-    const { tenantId, idUser: customerId } = user;
+    const { tenantId, sub: customerId } = user;
 
     return await this.prisma.$transaction(async (tx) => {
       // 1️⃣ Traer productos del tenant
@@ -188,7 +188,7 @@ export class OrdersService {
   }
 
   async completeOrder(orderId: string, user: RequestUser) {
-    const { tenantId, idUser, role } = user;
+    const { tenantId, sub, role } = user;
 
     if (role !== 'DRIVER') {
       throw new ForbiddenException(
@@ -207,7 +207,7 @@ export class OrdersService {
       throw new NotFoundException('Orden no encontrada');
     }
 
-    if (order.idDriver !== idUser) {
+    if (order.idDriver !== sub) {
       throw new ForbiddenException(
         'No puedes completar una orden que no te fue asignada',
       );
@@ -226,9 +226,9 @@ export class OrdersService {
   }
 
   async getMyOrders(user: RequestUser) {
-    const { tenantId, idUser, role } = user;
+    const { tenantId, sub, role } = user;
 
-    if (role === Role.RESTAURANT_ADMIN) {
+    if (role === Role.RESTAURANT_ADMIN || role === Role.SUPER_ADMIN) {
       return await this.prisma.order.findMany({
         where: { idTenant: tenantId },
         include: { orderItem: true },
@@ -237,7 +237,7 @@ export class OrdersService {
 
     if (role === Role.CUSTOMER) {
       return await this.prisma.order.findMany({
-        where: { idTenant: tenantId, idCustomer: idUser },
+        where: { idTenant: tenantId, idCustomer: sub },
         include: { orderItem: true },
       });
     }
@@ -246,7 +246,7 @@ export class OrdersService {
       return await this.prisma.order.findMany({
         where: {
           idTenant: tenantId,
-          OR: [{ idDriver: idUser }, { status: 'READY' }],
+          OR: [{ idDriver: sub }, { status: 'READY' }],
         },
         include: { orderItem: true },
       });
