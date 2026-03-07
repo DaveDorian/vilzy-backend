@@ -14,4 +14,8 @@ export class LoginDto {
   @ApiProperty()
   @IsUUID()
   tenantId!: string;
+
+  @ApiProperty()
+  @IsString()
+  deviceId!: string;
 }

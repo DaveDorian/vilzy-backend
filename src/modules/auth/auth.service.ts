@@ -1,9 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from 'src/infrastructure/prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
-import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class AuthService {
@@ -13,7 +12,7 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginDto) {
-    const { email, password, tenantId } = dto;
+    const { email, password, tenantId, deviceId } = dto;
 
     const user = await this.prisma.user.findFirst({
       where: { idTenant: tenantId, email },
@@ -31,8 +30,6 @@ export class AuthService {
     const passwordMatch = await bcrypt.compare(password, user.password);
 
     if (!passwordMatch) throw new Error('Invalid credentials');
-
-    const deviceId = uuidv4();
 
     const payload = {
       sub: user.idUser,
@@ -77,7 +74,7 @@ export class AuthService {
         secret: process.env.JWT_REFRESH_SECRET,
       });
 
-      const { sub, tenantId, role, deviceId } = payload;
+      const { sub, tenantId, email, role, deviceId } = payload;
 
       const storedToken = await this.prisma.refreshToken.findFirst({
         where: {
@@ -113,7 +110,7 @@ export class AuthService {
         data: { revoked: true },
       });
 
-      const newPayload = { sub, tenantId, role, deviceId };
+      const newPayload = { sub, tenantId, email, role, deviceId };
 
       const newAccessToken = await this.jwtService.signAsync(newPayload);
 
@@ -126,7 +123,7 @@ export class AuthService {
 
       return { accessToken: newAccessToken, refreshToken: newRefreshToken };
     } catch (error) {
-      throw new Error('Invalid refresh token');
+      throw new UnauthorizedException('Session expired, please login again');
     }
   }
 

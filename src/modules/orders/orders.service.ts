@@ -254,4 +254,22 @@ export class OrdersService {
       throw new ForbiddenException('Rol no autorizado para ver órdenes');
     }
   }
+
+  async acceptOrder(orderId: string, tenantId: string) {
+    const order = await this.prisma.order.findFirst({
+      where: { idOrder: orderId, idTenant: tenantId },
+    });
+
+    if (!order) throw new ForbiddenException('Orden no encontrada');
+
+    if (order.status !== 'PENDING')
+      throw new ForbiddenException('Orden ya confirmada');
+
+    return await this.prisma.order.update({
+      where: { idOrder: orderId },
+      data: {
+        status: 'CONFIRMED',
+      },
+    });
+  }
 }

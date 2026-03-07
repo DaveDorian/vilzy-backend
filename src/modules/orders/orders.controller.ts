@@ -62,4 +62,10 @@ export class OrdersController {
   getMyOrders(@CurrentUser() user: any) {
     return this.ordersService.getMyOrders(user);
   }
+
+  @Roles(Role.SUPER_ADMIN, Role.RESTAURANT_ADMIN)
+  @Patch(':id/accept-order')
+  acceptOrder(@Param('id') orderId: string, @CurrentUser() user: RequestUser) {
+    return this.ordersService.acceptOrder(orderId, user.tenantId);
+  }
 }
