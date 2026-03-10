@@ -42,7 +42,13 @@ export class ProductsService {
     }
 
     return this.prisma.product.findMany({
-      where: { idRestaurant: restaurantId },
+      where: { idRestaurant: restaurantId, isAvailable: true },
+      select: {
+        idProduct: true,
+        name: true,
+        price: true,
+        imageUrl: true,
+      },
     });
   }
 

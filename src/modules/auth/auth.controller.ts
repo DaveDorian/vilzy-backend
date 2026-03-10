@@ -7,6 +7,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { RequestUser } from 'src/common/interfaces/request-user.interface';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { RegisterUserDto } from './dto/register-user.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -22,6 +23,11 @@ export class AuthController {
   @Post('refresh')
   refreshToken(@Body() dto: RefreshTokenDto) {
     return this.authService.refreshToken(dto.refreshToken);
+  }
+
+  @Post('register')
+  register(@Body() dto: RegisterUserDto) {
+    return this.authService.register(dto);
   }
 
   @UseGuards(JwtAuthGuard)

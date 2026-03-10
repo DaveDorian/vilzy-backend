@@ -1,9 +1,15 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from 'src/infrastructure/prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
+import { RegisterUserDto } from './dto/register-user.dto';
+import { Role } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -117,10 +123,8 @@ export class AuthService {
 
       const newPayload: JwtPayload = { sub, tenantId, email, role, deviceId };
 
-      if (!restaurantId) {
-        if (role === 'RESTAURANT_ADMIN' || role === 'RESTAURANT_CASHIER')
-          newPayload['restaurantId'] = restaurantId;
-      }
+      if (role === 'RESTAURANT_ADMIN' || role === 'RESTAURANT_CASHIER')
+        newPayload['restaurantId'] = restaurantId;
 
       const newAccessToken = await this.jwtService.signAsync(newPayload);
 
@@ -135,6 +139,51 @@ export class AuthService {
     } catch (error) {
       throw new UnauthorizedException('Session expired, please login again');
     }
+  }
+
+  async register(dto: RegisterUserDto) {
+    const targetTenantId =
+      dto.role === Role.CUSTOMER ? process.env.GLOBAL_TENANT_ID : dto.tenantId;
+
+    console.log(`exception ${process.env.GLOBAL_TENANT_ID}`);
+    if (!targetTenantId) {
+      throw new BadRequestException(
+        'idTenant es requerido para roles de staff/owner',
+      );
+    }
+
+    const hashPassword = await bcrypt.hash(dto.password, 10);
+
+    const userCreated = await this.prisma.user.create({
+      data: {
+        name: dto.name,
+        surname: dto.surname,
+        ci: dto.ci,
+        email: dto.email,
+        password: hashPassword,
+        role: dto.role,
+        idTenant: targetTenantId,
+      },
+    });
+
+    const payload: JwtPayload = {
+      sub: userCreated.idUser,
+      tenantId: userCreated.idTenant,
+      email: userCreated.email,
+      role: userCreated.role,
+      deviceId: dto.deviceId,
+    };
+
+    const accessToken = await this.jwtService.signAsync(payload);
+
+    const refreshToken = await this.jwtService.signAsync(payload, {
+      secret: process.env.JWT_REFRESH_SECRET,
+      expiresIn: '7d',
+    });
+
+    await this.saveRefreshToken(userCreated.idUser, refreshToken, dto.deviceId);
+
+    return { accessToken, refreshToken };
   }
 
   async logout(userId: string, deviceId: string) {
