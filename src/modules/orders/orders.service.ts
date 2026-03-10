@@ -71,8 +71,6 @@ export class OrdersService {
           subtotal,
           commissionAmount: commission,
           total,
-          pickupLat: 0,
-          pickupLng: 0,
           deliveryLat: 0,
           deliveryLng: 0,
           deliveryAddress: '',
@@ -89,6 +87,7 @@ export class OrdersService {
             idProduct: item.idProduct,
             quantity: item.quantity,
             priceAtPurchase: product!.price,
+            nameAtPurchase: product!.name,
           };
         }),
       });
@@ -231,14 +230,16 @@ export class OrdersService {
     if (role === Role.RESTAURANT_ADMIN || role === Role.SUPER_ADMIN) {
       return await this.prisma.order.findMany({
         where: { idTenant: tenantId },
-        include: { orderItem: true },
+        include: {
+          items: true,
+        },
       });
     }
 
     if (role === Role.CUSTOMER) {
       return await this.prisma.order.findMany({
         where: { idTenant: tenantId, idCustomer: sub },
-        include: { orderItem: true },
+        include: { items: true },
       });
     }
 
@@ -248,7 +249,7 @@ export class OrdersService {
           idTenant: tenantId,
           OR: [{ idDriver: sub }, { status: 'READY' }],
         },
-        include: { orderItem: true },
+        include: { items: true },
       });
     } else {
       throw new ForbiddenException('Rol no autorizado para ver órdenes');

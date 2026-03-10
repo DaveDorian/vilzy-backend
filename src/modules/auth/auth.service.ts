@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from 'src/infrastructure/prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
+import { JwtPayload } from './interfaces/jwt-payload.interface';
 
 @Injectable()
 export class AuthService {
@@ -12,12 +13,13 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginDto) {
-    const { email, password, tenantId, deviceId } = dto;
+    const { email, password, deviceId } = dto;
 
     const user = await this.prisma.user.findFirst({
-      where: { idTenant: tenantId, email },
+      where: { email },
       include: {
         tenant: true,
+        staffProfile: true,
       },
     });
 
@@ -31,13 +33,16 @@ export class AuthService {
 
     if (!passwordMatch) throw new Error('Invalid credentials');
 
-    const payload = {
+    const payload: JwtPayload = {
       sub: user.idUser,
       tenantId: user.idTenant,
       email: user.email,
       role: user.role,
       deviceId,
     };
+
+    if (user.role === 'RESTAURANT_ADMIN' || user.role === 'RESTAURANT_CASHIER')
+      payload['restaurantId'] = user.staffProfile!.idRestaurant;
 
     const accessToken = await this.jwtService.signAsync(payload);
 
@@ -74,7 +79,7 @@ export class AuthService {
         secret: process.env.JWT_REFRESH_SECRET,
       });
 
-      const { sub, tenantId, email, role, deviceId } = payload;
+      const { sub, tenantId, email, role, deviceId, restaurantId } = payload;
 
       const storedToken = await this.prisma.refreshToken.findFirst({
         where: {
@@ -110,7 +115,12 @@ export class AuthService {
         data: { revoked: true },
       });
 
-      const newPayload = { sub, tenantId, email, role, deviceId };
+      const newPayload: JwtPayload = { sub, tenantId, email, role, deviceId };
+
+      if (!restaurantId) {
+        if (role === 'RESTAURANT_ADMIN' || role === 'RESTAURANT_CASHIER')
+          newPayload['restaurantId'] = restaurantId;
+      }
 
       const newAccessToken = await this.jwtService.signAsync(newPayload);
 

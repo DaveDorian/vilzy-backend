@@ -2,25 +2,32 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { PrismaService } from 'src/infrastructure/prisma/prisma.service';
+import { RequestUser } from 'src/common/interfaces/request-user.interface';
 
 @Injectable()
 export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateProductDto, tenantId: string) {
+  async create(dto: CreateProductDto, user: RequestUser) {
     const restaurant = await this.prisma.restaurant.findFirst({
-      where: { idRestaurant: dto.idRestaurant, idTenant: tenantId },
+      where: { idRestaurant: user.restaurantId, idTenant: user.tenantId },
     });
 
     if (!restaurant) {
       throw new NotFoundException('Restaurant not found');
     }
-
     return this.prisma.product.create({
       data: {
         name: dto.name,
         price: dto.price,
-        idRestaurant: dto.idRestaurant,
+        idRestaurant: user.restaurantId!,
+        idCategory: dto.categoryId,
+      },
+      select: {
+        idProduct: true,
+        name: true,
+        price: true,
+        idCategory: true,
       },
     });
   }

@@ -17,6 +17,7 @@ enum Role {
   SUPER_ADMIN
   TENANT_ADMIN
   RESTAURANT_ADMIN
+  RESTAURANT_CASHIER
   DRIVER
   CUSTOMER
 }
@@ -127,6 +128,7 @@ model User {
   idTenant String
   tenant Tenant @relation(fields: [idTenant],references: [idTenant])
 
+  staffProfile RestaurantStaff?
   driverProfile DriverProfile?
   managedRestaurant Restaurant? @relation("RestaurantOwner")
   
@@ -138,6 +140,20 @@ model User {
   updatedAt DateTime @updatedAt
 
   @@index([idTenant, role])
+}
+
+model RestaurantStaff {
+  idStaff String @id @default(uuid())
+  idUser String @unique
+  user User @relation(fields: [idUser],references: [idUser])
+
+  idRestaurant String @unique
+  restaurant Restaurant @relation(fields: [idRestaurant],references: [idRestaurant])
+
+  canEditMenu Boolean @default(false)
+  canViewReports Boolean @default(false)
+
+  createdAt DateTime @default(now())
 }
 
 model DriverProfile {
@@ -212,6 +228,7 @@ model Restaurant {
   category Category[]
   products Product[]
   orders Order[]
+  staff RestaurantStaff?
 
   createdAt DateTime @default(now())
 
@@ -221,6 +238,7 @@ model Restaurant {
 model Category {
   idCategory String @id @default(uuid())
   name String
+  displayOrder Int @default(0)
   idRestaurant String
   restaurant Restaurant @relation(fields: [idRestaurant],references: [idRestaurant])
   products Product[]

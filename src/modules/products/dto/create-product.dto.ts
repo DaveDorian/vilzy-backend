@@ -13,5 +13,5 @@ export class CreateProductDto {
 
   @ApiProperty()
   @IsUUID()
-  idRestaurant!: string;
+  categoryId!: string;
 }

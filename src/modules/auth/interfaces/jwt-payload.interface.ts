@@ -4,4 +4,5 @@ export interface JwtPayload {
   role: string;
   email: string;
   deviceId: string;
+  restaurantId?: string;
 }

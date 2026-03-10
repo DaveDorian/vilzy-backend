@@ -12,13 +12,13 @@ import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { JwtStrategy } from '../auth/strategies/jwt.strategy';
 import { Role } from '@prisma/client';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { RequestUser } from 'src/common/interfaces/request-user.interface';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
-@UseGuards(JwtStrategy, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('products')
 export class ProductsController {
   constructor(private readonly service: ProductsService) {}
@@ -26,15 +26,12 @@ export class ProductsController {
   @Roles(Role.SUPER_ADMIN, Role.TENANT_ADMIN, Role.RESTAURANT_ADMIN)
   @Post()
   create(@Body() dto: CreateProductDto, @CurrentUser() user: RequestUser) {
-    return this.service.create(dto, user.tenantId);
+    return this.service.create(dto, user);
   }
 
-  @Get('restaurant/:idRestaurant')
-  findAllByRestaurant(
-    @CurrentUser() user: RequestUser,
-    @Param('idRestaurant') idRestaurant: string,
-  ) {
-    return this.service.findAllByRestaurant(user.tenantId, idRestaurant);
+  @Get('restaurant')
+  findAllByRestaurant(@CurrentUser() user: RequestUser) {
+    return this.service.findAllByRestaurant(user.tenantId, user.restaurantId!);
   }
 
   @Get(':idProduct')
