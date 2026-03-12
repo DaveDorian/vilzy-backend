@@ -11,6 +11,8 @@ import { ProductsModule } from './modules/products/products.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { LogisticsModule } from './modules/logistics/logistics.module';
+import { DriversService } from './modules/drivers/drivers.service';
 ScheduleModule.forRoot();
 @Module({
   imports: [
@@ -43,8 +45,9 @@ ScheduleModule.forRoot();
     ProductsModule,
     OrdersModule,
     CategoriesModule,
+    LogisticsModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [DriversService],
 })
 export class AppModule {}

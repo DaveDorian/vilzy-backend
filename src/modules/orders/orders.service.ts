@@ -11,10 +11,14 @@ import { RequestUser } from 'src/common/interfaces/request-user.interface';
 import { ChangeOrderStatusDto } from './dto/change-order-status.dto';
 import { OrderStatus, Role } from '@prisma/client';
 import { AssignDriverDto } from './dto/assign-driver.dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventEmmiter: EventEmitter2,
+  ) {}
 
   async create(dto: CreateOrderDto, user: RequestUser) {
     const { tenantId, sub, role } = user;
@@ -193,16 +197,26 @@ export class OrdersService {
       );
     }
 
-    console.log('previus validate transition');
-
     this.validateTransition(order.status, dto.status as OrderStatus);
 
-    console.log('late validate');
-
-    return await this.prisma.order.update({
+    const updatedOrder = await this.prisma.order.update({
       where: { idOrder: orderId },
       data: { status: dto.status as OrderStatus },
+      include: {
+        restaurant: {
+          select: {
+            name: true,
+            idTenant: true,
+          },
+        },
+      },
     });
+
+    if ((dto.status as OrderStatus) === 'READY') {
+      this.eventEmmiter.emit('order.ready', updatedOrder);
+    }
+
+    return updatedOrder;
   }
 
   async assignDriver(orderId: string, dto: AssignDriverDto, user: RequestUser) {
