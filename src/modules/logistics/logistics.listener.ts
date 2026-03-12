@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from 'src/infrastructure/prisma/prisma.service';
 import { DriversLogicService } from '../drivers/drivers-logic.service';
+import { PushNotificationsService } from '../notifications/push-notifications.service';
 
 @Injectable()
 export class LogisticsListener {
@@ -10,6 +11,7 @@ export class LogisticsListener {
   constructor(
     private readonly prisma: PrismaService,
     private readonly driversLogic: DriversLogicService,
+    private readonly pushService: PushNotificationsService,
   ) {}
 
   @OnEvent('order.ready', { async: true })
@@ -46,26 +48,26 @@ export class LogisticsListener {
             expiresAt: new Date(Date.now() + 2 * 60000), // 2 min para expirar
           },
         });
-
-        if (driver.fcmToken) {
-          return this.sendPush(driver.fcmToken, idOrder, restaurant.name);
-        }
       });
 
       await Promise.all(pushPromises);
+
+      const tokens = nearbyDrivers.map((d) => d.fcmToken).filter((t) => !!t);
+
+      if (tokens.length > 0) {
+        await this.pushService.sendMulticast(
+          tokens,
+          '¡Nueva orden disponible! 🍕',
+          `El restaurante ${restaurant.name} tiene un pedido listo.`,
+          {
+            orderId: idOrder,
+            type: 'NEW_ORDER_AVAILABLE',
+            click_action: 'FLUTTER_NOTIFICATION_CLICK',
+          },
+        );
+      }
     } catch (error: any) {
       this.logger.error(`Error en logística: ${error.message}`);
     }
-  }
-
-  private async sendPush(
-    token: string,
-    orderId: string,
-    restaurantName: string,
-  ) {
-    // Simulación de envío FCM
-    this.logger.log(
-      `Push enviado a token ${token.substring(0, 5)} para orden ${orderId} ${restaurantName}`,
-    );
   }
 }

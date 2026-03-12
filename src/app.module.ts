@@ -13,6 +13,7 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { LogisticsModule } from './modules/logistics/logistics.module';
 import { DriversService } from './modules/drivers/drivers.service';
+import { NotificationsService } from './modules/notifications/push-notifications.service';
 ScheduleModule.forRoot();
 @Module({
   imports: [
@@ -48,6 +49,6 @@ ScheduleModule.forRoot();
     LogisticsModule,
   ],
   controllers: [],
-  providers: [DriversService],
+  providers: [DriversService, NotificationsService],
 })
 export class AppModule {}
