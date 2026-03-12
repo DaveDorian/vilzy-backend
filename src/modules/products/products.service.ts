@@ -52,6 +52,26 @@ export class ProductsService {
     });
   }
 
+  async findAllByIdRestaurant(restaurantId: string) {
+    const restaurant = await this.prisma.restaurant.findFirst({
+      where: { idRestaurant: restaurantId },
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException('Restaurant not found');
+    }
+
+    return this.prisma.product.findMany({
+      where: { idRestaurant: restaurantId, isAvailable: true },
+      select: {
+        idProduct: true,
+        name: true,
+        price: true,
+        imageUrl: true,
+      },
+    });
+  }
+
   async findOne(idProduct: string, tenantId: string) {
     const product = await this.prisma.product.findFirst({
       where: { idProduct, restaurant: { idTenant: tenantId } },

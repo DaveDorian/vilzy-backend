@@ -22,19 +22,22 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
-  @Roles(Role.TENANT_ADMIN, Role.RESTAURANT_ADMIN)
+  @Roles(Role.TENANT_ADMIN, Role.RESTAURANT_ADMIN, Role.CUSTOMER)
   @Post()
   create(@Body() dto: CreateOrderDto, @CurrentUser() user: RequestUser) {
     return this.ordersService.create(dto, user);
   }
 
-  @Roles(Role.TENANT_ADMIN, Role.RESTAURANT_ADMIN)
+  @Roles(Role.TENANT_ADMIN, Role.RESTAURANT_ADMIN, Role.RESTAURANT_CASHIER)
   @Patch(':id/status')
   changeStatus(
     @Param('id') idOrder: string,
     @Body() dto: ChangeOrderStatusDto,
     @CurrentUser() user: RequestUser,
   ) {
+    console.log(
+      `idOrder: ${idOrder}, dto: ${dto.status} , user: ${user.tenantId}`,
+    );
     return this.ordersService.changeStatus(idOrder, dto, user);
   }
 
@@ -58,7 +61,7 @@ export class OrdersController {
   }
 
   @Roles(Role.SUPER_ADMIN, Role.RESTAURANT_ADMIN, Role.CUSTOMER, Role.DRIVER)
-  @Get('my-orders')
+  @Get('restaurant')
   getMyOrders(@CurrentUser() user: any) {
     return this.ordersService.getMyOrders(user);
   }

@@ -27,9 +27,14 @@ export class RestaurantsController {
     return this.service.create(dto, user.tenantId);
   }
 
+  @Get('tenant')
+  findAllByTenant(@CurrentUser() user: RequestUser) {
+    return this.service.findAllByTenant(user.tenantId);
+  }
+
   @Get()
-  findAll(@CurrentUser() user: RequestUser) {
-    return this.service.findAll(user.tenantId);
+  findAll() {
+    return this.service.findAll();
   }
 
   @Get(':idRestaurant')

@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/infrastructure/prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -16,100 +17,149 @@ export class OrdersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateOrderDto, user: RequestUser) {
-    const { tenantId, sub: customerId } = user;
+    const { tenantId, sub, role } = user;
+    const items = dto.items;
 
-    return await this.prisma.$transaction(async (tx) => {
-      // 1️⃣ Traer productos del tenant
-      const products = await tx.product.findMany({
-        where: {
-          idProduct: { in: dto.items.map((i) => i.idProduct) },
-          restaurant: { idTenant: tenantId },
-        },
-      });
+    let finalRestaurantId: string;
+    let finalTenantId: string;
 
-      if (products.length !== dto.items.length) {
-        throw new BadRequestException('Algunos productos no existen');
-      }
+    if (role === Role.RESTAURANT_ADMIN || role === Role.RESTAURANT_CASHIER) {
+      finalRestaurantId = user.restaurantId!;
+      finalTenantId = tenantId;
+    } else {
+      if (!dto.restaurantId)
+        throw new UnauthorizedException(
+          'El ID de restaurante es obligatorio para clientes',
+        );
 
-      const stockProducts = products.filter((p) => p.stock! > 0);
+      if (!dto.tenantId)
+        throw new UnauthorizedException(
+          'El ID de tenant es obligatorio para clientes',
+        );
+      finalRestaurantId = dto.restaurantId;
+      finalTenantId = dto.tenantId;
+    }
 
-      if (stockProducts.length !== dto.items.length) {
-        throw new BadRequestException('Algunos productos no tienen stock');
-      }
-
-      await tx.product.updateMany({
-        where: {
-          idProduct: { in: dto.items.map((i) => i.idProduct) },
-          restaurant: { idTenant: tenantId },
-        },
-        data: {
-          stock: {
-            decrement: 1,
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        // 1️⃣ Traer productos del tenant
+        const products = await tx.product.findMany({
+          where: {
+            idProduct: { in: items.map((i) => i.productId) },
+            idRestaurant: finalRestaurantId,
+            restaurant: { idTenant: finalTenantId },
           },
-        },
+        });
+
+        /*if (products.length !== dto.items.length) {
+          throw new BadRequestException('Algunos productos no existen');
+        }
+
+        for (const item of items) {
+          const product = products.find((p) => p.idProduct === item.productId);
+
+          if (!product || product.stock! < item.quantity)
+            throw new BadRequestException(
+              `Stock insuficiente para el producto: ${product?.name || item.productId}`,
+            );
+
+          await tx.product.update({
+            where: { idProduct: item.productId },
+            data: {
+              stock: { decrement: item.quantity },
+            },
+          });
+        }*/
+
+        /*const stockProducts = products.filter((p) => p.stock! > 0);
+  
+        if (stockProducts.length !== dto.items.length) {
+          throw new BadRequestException('Algunos productos no tienen stock');
+        }
+  
+        await tx.product.updateMany({
+          where: {
+            idProduct: { in: dto.items.map((i) => i.productId) },
+            restaurant: { idTenant: tenantId },
+          },
+          data: {
+            stock: {
+              decrement: 1,
+            },
+          },
+        });*/
+
+        // 2️⃣ Calcular subtotal
+        let subtotal = 0;
+
+        items.forEach((item) => {
+          const product = products.find((p) => p.idProduct === item.productId);
+          subtotal += product!.price * item.quantity;
+        });
+
+        const commissionRate = 0.1;
+        const commission = subtotal * commissionRate;
+        const total = subtotal + commission;
+
+        // 3️⃣ Crear orden
+        const order = await tx.order.create({
+          data: {
+            idTenant: finalTenantId,
+            idCustomer: dto.restaurantId ? sub : null,
+            idUserCreated: sub,
+            idRestaurant: finalRestaurantId,
+            status: 'CREATED',
+            subtotal,
+            commissionAmount: commission,
+            total,
+            deliveryLat: 0,
+            deliveryLng: 0,
+            deliveryAddress: '',
+          },
+        });
+
+        // 4️⃣ Crear order items
+        await tx.orderItem.createMany({
+          data: dto.items.map((item) => {
+            const product = products.find(
+              (p) => p.idProduct === item.productId,
+            );
+
+            return {
+              idOrder: order.idOrder,
+              idProduct: item.productId,
+              quantity: item.quantity,
+              priceAtPurchase: product!.price,
+              nameAtPurchase: product!.name,
+            };
+          }),
+        });
+
+        return order;
       });
-
-      // 2️⃣ Calcular subtotal
-      let subtotal = 0;
-
-      dto.items.forEach((item) => {
-        const product = products.find((p) => p.idProduct === item.idProduct);
-        subtotal += product!.price * item.quantity;
-      });
-
-      const commissionRate = 0.1;
-      const commission = subtotal * commissionRate;
-      const total = subtotal + commission;
-
-      // 3️⃣ Crear orden
-      const order = await tx.order.create({
-        data: {
-          idTenant: tenantId,
-          idCustomer: customerId,
-          idRestaurant: products[0].idRestaurant,
-          status: 'PENDING',
-          subtotal,
-          commissionAmount: commission,
-          total,
-          deliveryLat: 0,
-          deliveryLng: 0,
-          deliveryAddress: '',
-        },
-      });
-
-      // 4️⃣ Crear order items
-      await tx.orderItem.createMany({
-        data: dto.items.map((item) => {
-          const product = products.find((p) => p.idProduct === item.idProduct);
-
-          return {
-            idOrder: order.idOrder,
-            idProduct: item.idProduct,
-            quantity: item.quantity,
-            priceAtPurchase: product!.price,
-            nameAtPurchase: product!.name,
-          };
-        }),
-      });
-
-      return order;
-    });
+    } catch (error) {
+      console.log(error);
+    }
   }
 
   private validateTransition(current: OrderStatus, next: OrderStatus) {
     const validTransitions: Record<OrderStatus, OrderStatus[]> = {
-      PREPARING: [],
-      CREATED: [OrderStatus.PENDING],
-      PENDING: [OrderStatus.CONFIRMED],
-      CONFIRMED: [OrderStatus.READY],
-      READY: [OrderStatus.ASSIGNED],
-      ASSIGNED: [OrderStatus.DELIVERED],
-      SEARCHING_DRIVER: [],
-      OFFERED_TO_DRIVER: [],
-      PICKED_UP: [],
+      CREATED: [OrderStatus.PREPARING, OrderStatus.CANCELLED],
+      PREPARING: [OrderStatus.READY, OrderStatus.CANCELLED],
+      READY: [OrderStatus.SEARCHING_DRIVER, OrderStatus.CANCELLED],
+      SEARCHING_DRIVER: [
+        OrderStatus.OFFERED_TO_DRIVER,
+        OrderStatus.FAILED,
+        OrderStatus.CANCELLED,
+      ],
+      OFFERED_TO_DRIVER: [OrderStatus.ASSIGNED, OrderStatus.SEARCHING_DRIVER],
+      ASSIGNED: [OrderStatus.PICKED_UP, OrderStatus.CANCELLED],
+      PICKED_UP: [OrderStatus.DELIVERED, OrderStatus.FAILED],
       DELIVERED: [],
       CANCELLED: [],
       FAILED: [],
+      PENDING: [],
+      CONFIRMED: [],
     };
 
     if (!validTransitions[current].includes(next)) {
@@ -143,7 +193,11 @@ export class OrdersService {
       );
     }
 
+    console.log('previus validate transition');
+
     this.validateTransition(order.status, dto.status as OrderStatus);
+
+    console.log('late validate');
 
     return await this.prisma.order.update({
       where: { idOrder: orderId },
@@ -227,11 +281,27 @@ export class OrdersService {
   async getMyOrders(user: RequestUser) {
     const { tenantId, sub, role } = user;
 
-    if (role === Role.RESTAURANT_ADMIN || role === Role.SUPER_ADMIN) {
+    if (role === Role.RESTAURANT_ADMIN || role === Role.RESTAURANT_CASHIER) {
       return await this.prisma.order.findMany({
-        where: { idTenant: tenantId },
-        include: {
-          items: true,
+        where: { idTenant: tenantId, idRestaurant: user.restaurantId },
+        select: {
+          idOrder: true,
+          orderNumber: true,
+          status: true,
+          subtotal: true,
+          total: true,
+          deliveryAddress: true,
+          deliveryLat: true,
+          deliveryLng: true,
+
+          items: {
+            select: {
+              idOrderItem: true,
+              quantity: true,
+              priceAtPurchase: true,
+              nameAtPurchase: true,
+            },
+          },
         },
       });
     }

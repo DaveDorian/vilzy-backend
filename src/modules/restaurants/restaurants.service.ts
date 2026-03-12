@@ -15,10 +15,25 @@ export class RestaurantsService {
     });
   }
 
-  findAll(tenantId: string) {
+  findAllByTenant(tenantId: string) {
     return this.prisma.restaurant.findMany({
       where: { idTenant: tenantId },
       orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  findAll() {
+    return this.prisma.restaurant.findMany({
+      where: { isActive: true },
+      orderBy: { name: 'asc' },
+      select: {
+        idRestaurant: true,
+        name: true,
+        address: true,
+        lat: true,
+        lng: true,
+        idTenant: true,
+      },
     });
   }
 

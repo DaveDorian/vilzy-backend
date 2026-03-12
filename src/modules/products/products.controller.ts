@@ -34,6 +34,11 @@ export class ProductsController {
     return this.service.findAllByRestaurant(user.tenantId, user.restaurantId!);
   }
 
+  @Get('restaurant/:id')
+  findAllByIdRestaurant(@Param('id') restaurantId: string) {
+    return this.service.findAllByIdRestaurant(restaurantId);
+  }
+
   @Get(':idProduct')
   findOne(
     @Param('idProduct') idProduct: string,

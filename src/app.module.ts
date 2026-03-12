@@ -10,6 +10,7 @@ import { RestaurantsModule } from './modules/restaurants/restaurants.module';
 import { ProductsModule } from './modules/products/products.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { CategoriesModule } from './modules/categories/categories.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 ScheduleModule.forRoot();
 @Module({
   imports: [
@@ -24,6 +25,15 @@ ScheduleModule.forRoot();
         host: 'localhost',
         port: 6379,
       },
+    }),
+    EventEmitterModule.forRoot({
+      wildcard: false,
+      delimiter: '.',
+      newListener: false,
+      removeListener: false,
+      maxListeners: 10,
+      verboseMemoryLeak: false,
+      ignoreErrors: false,
     }),
     AuthModule,
     PrismaModule,

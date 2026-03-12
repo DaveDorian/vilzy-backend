@@ -133,6 +133,7 @@ model User {
   managedRestaurant Restaurant? @relation("RestaurantOwner")
   
   customerOrders Order[] @relation("CustomerOrders")
+  userCreatedOrders Order[] @relation("UserCreatedOrders")
   tokens RefreshToken[]
   
 
@@ -271,9 +272,12 @@ model Order {
   orderNumber Int @default(autoincrement())
   status OrderStatus @default(PENDING)
 
-  idCustomer String
-  customer User @relation("CustomerOrders",fields: [idCustomer], references: [idUser])
+  idCustomer String?
+  customer User? @relation("CustomerOrders",fields: [idCustomer], references: [idUser])
   
+  idUserCreated String?
+  cashier User? @relation("UserCreatedOrders",fields: [idUserCreated],references: [idUser])
+
   idRestaurant String
   restaurant Restaurant @relation(fields: [idRestaurant],references: [idRestaurant])
   
