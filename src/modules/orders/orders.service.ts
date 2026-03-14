@@ -17,7 +17,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly eventEmmiter: EventEmitter2,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(dto: CreateOrderDto, user: RequestUser) {
@@ -213,8 +213,15 @@ export class OrdersService {
     });
 
     if ((dto.status as OrderStatus) === 'READY') {
-      this.eventEmmiter.emit('order.ready', updatedOrder);
+      this.eventEmitter.emit('order.ready', updatedOrder);
     }
+    
+    // Broadcast websocket change
+    // Avoid double broadcasting created if we add that later, but everything else goes
+    this.eventEmitter.emit('order.status_changed', {
+       idOrder: updatedOrder.idOrder,
+       status: updatedOrder.status
+    });
 
     return updatedOrder;
   }
@@ -242,16 +249,29 @@ export class OrdersService {
 
     const driver = await this.prisma.user.findUnique({
       where: { idUser: dto.driverId, idTenant: tenantId, role: 'DRIVER' },
+      include: { driverProfile: true },
     });
 
     if (!driver) {
       throw new BadRequestException('Conductor no encontrado');
     }
 
-    return await this.prisma.order.update({
+    const updatedOrder = await this.prisma.order.update({
       where: { idOrder: orderId },
       data: { idDriver: dto.driverId, status: 'ASSIGNED' as OrderStatus },
     });
+    
+    this.eventEmitter.emit('order.status_changed', {
+       idOrder: updatedOrder.idOrder,
+       status: updatedOrder.status,
+       driver: {
+          idDriver: driver.idUser,
+          name: driver.name,
+          vehiclePlate: driver.driverProfile?.vehiclePlate
+       }
+    });
+    
+    return updatedOrder;
   }
 
   async completeOrder(orderId: string, user: RequestUser) {
@@ -286,10 +306,17 @@ export class OrdersService {
       );
     }
 
-    return await this.prisma.order.update({
+    const updatedOrder = await this.prisma.order.update({
       where: { idOrder: orderId },
       data: { status: 'DELIVERED' as OrderStatus },
     });
+    
+    this.eventEmitter.emit('order.status_changed', {
+       idOrder: updatedOrder.idOrder,
+       status: updatedOrder.status
+    });
+    
+    return updatedOrder;
   }
 
   async getMyOrders(user: RequestUser) {
@@ -350,11 +377,18 @@ export class OrdersService {
     if (order.status !== 'PENDING')
       throw new ForbiddenException('Orden ya confirmada');
 
-    return await this.prisma.order.update({
+    const updatedOrder = await this.prisma.order.update({
       where: { idOrder: orderId },
       data: {
         status: 'CONFIRMED',
       },
     });
+
+    this.eventEmitter.emit('order.status_changed', {
+       idOrder: updatedOrder.idOrder,
+       status: updatedOrder.status
+    });
+    
+    return updatedOrder;
   }
 }
