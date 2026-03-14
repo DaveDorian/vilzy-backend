@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as admin from 'firebase-admin';
-import * as serviceAccount from '../../../google-services.json';
+import * as serviceAccount from '../../../vilzy-app-firebase-adminsdk-fbsvc-a89d9c50ee.json';
 
 @Injectable()
 export class PushNotificationsService {

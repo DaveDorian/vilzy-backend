@@ -1,20 +1,25 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/infrastructure/prisma/prisma.service';
+import * as bcrypt from 'bcrypt';
+import { CreateDriverDto } from './dto/create-driver.dto';
 
 @Injectable()
 export class DriversService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createDriver(data: any, idTenant: string) {
+  async createDriver(dto: CreateDriverDto, idTenant: string) {
+    console.log(`dto: ${dto},tenantId: ${idTenant}`);
+    const hashPassword = await bcrypt.hash(dto.ci, 10);
+
     return await this.prisma.$transaction(async (tx) => {
       // 1. Crear el Usuario
       const user = await tx.user.create({
         data: {
-          name: data.name,
-          surname: data.surname,
-          email: data.email,
-          password: data.hashedPassword,
-          ci: data.ci,
+          name: dto.name,
+          surname: dto.surname,
+          email: dto.email,
+          password: hashPassword,
+          ci: dto.ci,
           role: 'DRIVER',
           idTenant,
         },
@@ -24,14 +29,14 @@ export class DriversService {
       await tx.driverProfile.create({
         data: {
           idDriver: user.idUser,
-          vehiclePlate: data.vehiclePlate,
-          vehicleType: data.vehicleType,
+          vehiclePlate: dto.plateCar,
+          vehicleType: dto.typeCar,
         },
       });
 
       // 3. Inicializar ubicación en PostGIS (Raw SQL para geometry)
-      const lat = data.lat || -17.3895; // Cochabamba default
-      const lng = data.lng || -66.1568;
+      const lat = dto.lat || -17.338117216653316; // Cochabamba default
+      const lng = dto.lng || -66.2195730782737;
 
       await tx.$executeRawUnsafe(`
         UPDATE "DriverProfile" 

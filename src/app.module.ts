@@ -13,7 +13,9 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { LogisticsModule } from './modules/logistics/logistics.module';
 import { DriversService } from './modules/drivers/drivers.service';
-import { NotificationsService } from './modules/notifications/push-notifications.service';
+import { PushNotificationsService } from './modules/notifications/push-notifications.service';
+import { DriversModule } from './modules/drivers/drivers.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 ScheduleModule.forRoot();
 @Module({
   imports: [
@@ -47,8 +49,10 @@ ScheduleModule.forRoot();
     OrdersModule,
     CategoriesModule,
     LogisticsModule,
+    DriversModule,
+    NotificationsModule,
   ],
   controllers: [],
-  providers: [DriversService, NotificationsService],
+  providers: [DriversService, PushNotificationsService],
 })
 export class AppModule {}

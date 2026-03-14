@@ -86,6 +86,7 @@ export class AuthService {
       });
 
       const { sub, tenantId, email, role, deviceId, restaurantId } = payload;
+      console.log(`payload: ${payload}`);
 
       const storedToken = await this.prisma.refreshToken.findFirst({
         where: {
