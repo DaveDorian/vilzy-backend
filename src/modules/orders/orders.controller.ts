@@ -66,9 +66,16 @@ export class OrdersController {
     return this.ordersService.getMyOrders(user);
   }
 
-  @Roles(Role.SUPER_ADMIN, Role.RESTAURANT_ADMIN)
+  @Roles(Role.DRIVER)
+  @Get('offered')
+  getOfferedOrders(@CurrentUser() user: RequestUser) {
+    return this.ordersService.getOfferedOrders(user);
+  }
+
+  @Roles(Role.SUPER_ADMIN, Role.RESTAURANT_ADMIN, Role.DRIVER)
   @Patch(':id/accept-order')
   acceptOrder(@Param('id') orderId: string, @CurrentUser() user: RequestUser) {
-    return this.ordersService.acceptOrder(orderId, user.tenantId);
+    console.log(`orderId: ${orderId}`);
+    return this.ordersService.acceptOrder(orderId, user);
   }
 }

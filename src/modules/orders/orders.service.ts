@@ -207,6 +207,8 @@ export class OrdersService {
           select: {
             name: true,
             idTenant: true,
+            lat: true,
+            lng: true,
           },
         },
       },
@@ -367,27 +369,40 @@ export class OrdersService {
     }
   }
 
-  async acceptOrder(orderId: string, tenantId: string) {
+  async getOfferedOrders(user: RequestUser) {
+    const { tenantId, role } = user;
+
+    if (role !== Role.DRIVER) {
+      throw new ForbiddenException('Rol no autorizado para ver órdenes');
+    }
+
+    return await this.prisma.order.findMany({
+      where: { status: 'OFFERED_TO_DRIVER' , idTenant: tenantId},
+      include: { items: true },
+    });
+  }
+
+  async acceptOrder(orderId: string, user: RequestUser ) {
     const order = await this.prisma.order.findFirst({
-      where: { idOrder: orderId, idTenant: tenantId },
+      where: { idOrder: orderId, idTenant: user.tenantId },
     });
 
     if (!order) throw new ForbiddenException('Orden no encontrada');
 
-    if (order.status !== 'PENDING')
-      throw new ForbiddenException('Orden ya confirmada');
+    this.validateTransition(order.status, 'ASSIGNED');
 
     const updatedOrder = await this.prisma.order.update({
       where: { idOrder: orderId },
       data: {
-        status: 'CONFIRMED',
+        idDriver: user.sub,
+        status: 'ASSIGNED',
       },
     });
 
-    this.eventEmitter.emit('order.status_changed', {
+    /*this.eventEmitter.emit('order.status_changed', {
        idOrder: updatedOrder.idOrder,
        status: updatedOrder.status
-    });
+    });*/
     
     return updatedOrder;
   }

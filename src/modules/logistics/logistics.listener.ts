@@ -29,7 +29,7 @@ export class LogisticsListener {
       const nearbyDrivers = await this.driversLogic.findNearbyDrivers(
         restaurant.lat,
         restaurant.lng,
-        5,
+        10,
         idTenant,
       );
 
@@ -37,6 +37,11 @@ export class LogisticsListener {
         this.logger.warn(`No hay conductores para la orden ${idOrder}`);
         return;
       }
+
+      await this.prisma.order.update({
+        where: {idOrder},
+        data: {status: 'OFFERED_TO_DRIVER'}
+      });
 
       // 3. Crear ofertas y enviar Push
       const pushPromises = nearbyDrivers.map(async (driver) => {
