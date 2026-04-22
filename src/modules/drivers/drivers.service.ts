@@ -71,4 +71,11 @@ export class DriversService {
       LIMIT 10
     `);
   }
+
+  async changeStatus(idDriver: string, isOnline: boolean){
+    return await this.prisma.driverProfile.update({
+      where: {idDriver},
+      data: {isOnline: isOnline}
+    });
+  }
 }

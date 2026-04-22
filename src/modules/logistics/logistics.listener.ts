@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { OnEvent } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from 'src/infrastructure/prisma/prisma.service';
 import { DriversLogicService } from '../drivers/drivers-logic.service';
-import { PushNotificationsService } from '../notifications/push-notifications.service';
+//import { PushNotificationsService } from '../notifications/push-notifications.service';
 
 @Injectable()
 export class LogisticsListener {
@@ -11,12 +11,15 @@ export class LogisticsListener {
   constructor(
     private readonly prisma: PrismaService,
     private readonly driversLogic: DriversLogicService,
-    private readonly pushService: PushNotificationsService,
+    private readonly eventEmitter: EventEmitter2,
+    //private readonly pushService: PushNotificationsService,
   ) {}
 
   @OnEvent('order.ready', { async: true })
   async handleOrderReady(order: any) {
     const { idOrder, idTenant, restaurant } = order;
+
+    console.log(order);
 
     try {
       // 1. Cambiar estado a SEARCHING_DRIVER
@@ -29,9 +32,11 @@ export class LogisticsListener {
       const nearbyDrivers = await this.driversLogic.findNearbyDrivers(
         restaurant.lat,
         restaurant.lng,
-        10,
+        50,
         idTenant,
       );
+
+      console.log('drivers: ',nearbyDrivers);
 
       if (nearbyDrivers.length === 0) {
         this.logger.warn(`No hay conductores para la orden ${idOrder}`);
@@ -57,7 +62,10 @@ export class LogisticsListener {
 
       await Promise.all(pushPromises);
 
-      const tokens = nearbyDrivers.map((d) => d.fcmToken).filter((t) => !!t);
+      this.eventEmitter.emit('order.offered',{order,drivers: nearbyDrivers})
+
+      //TODO: push notifications
+      /*const tokens = nearbyDrivers.map((d) => d.fcmToken).filter((t) => !!t);
 
       if (tokens.length > 0) {
         await this.pushService.sendMulticast(
@@ -70,7 +78,7 @@ export class LogisticsListener {
             click_action: 'FLUTTER_NOTIFICATION_CLICK',
           },
         );
-      }
+      }*/
     } catch (error: any) {
       this.logger.error(`Error en logística: ${error.message}`);
     }

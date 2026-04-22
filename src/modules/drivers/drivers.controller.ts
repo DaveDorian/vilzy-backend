@@ -2,7 +2,9 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   ParseFloatPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -29,6 +31,12 @@ export class DriversController {
     } catch (error) {
       console.log(error);
     }
+  }
+
+  @Roles(Role.DRIVER)
+  @Patch(':status/change-status')
+  changeStatus(@Param('status') status: boolean, @CurrentUser() user: RequestUser){
+    return this.driverService.changeStatus(user.sub, status);
   }
 
   @Get('nearby')

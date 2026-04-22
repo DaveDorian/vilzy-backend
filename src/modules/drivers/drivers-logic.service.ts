@@ -22,16 +22,17 @@ export class DriversLogicService {
         u."fcmToken", 
         u.name,
         ST_DistanceSphere(
-          d.location, 
+          dl.location, 
           ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)
         ) as distance_meters
       FROM "DriverProfile" d
       JOIN "User" u ON d."idDriver" = u."idUser"
+      JOIN "DriverLocation" dl ON d."idDriver" = dl."idDriver"
       WHERE u."idTenant" = '${idTenant}'
         AND d."isOnline" = true 
         AND d."isAvailable" = true
         AND ST_DWithin(
-          d.location::geography, 
+          dl.location::geography, 
           ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography, 
           ${radiusInKm * 1000}
         )

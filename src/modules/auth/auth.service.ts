@@ -39,6 +39,17 @@ export class AuthService {
 
     if (!passwordMatch) throw new Error('Invalid credentials');
 
+    const userProfile = {
+      idUser: user.idUser,
+      name: user.name,
+      surname: user.surname,
+      ci: user.ci,
+      email: user.email,
+      role: user.role,
+      idTenant: user.idTenant,
+      fcmToken: user.fcmToken,
+    }
+
     const payload: JwtPayload = {
       sub: user.idUser,
       tenantId: user.idTenant,
@@ -59,7 +70,11 @@ export class AuthService {
 
     await this.saveRefreshToken(user.idUser, refreshToken, deviceId);
 
-    return { accessToken, refreshToken };
+    return { 
+      user: userProfile,
+      accessToken, 
+      refreshToken 
+    };
   }
 
   private async saveRefreshToken(
@@ -167,6 +182,17 @@ export class AuthService {
       },
     });
 
+    const userProfile = {
+      idUser: userCreated.idUser,
+      name: userCreated.name,
+      surname: userCreated.surname,
+      ci: userCreated.ci,
+      email: userCreated.email,
+      role: userCreated.role,
+      idTenant: userCreated.idTenant,
+      fcmToken: userCreated.fcmToken,
+    }
+
     const payload: JwtPayload = {
       sub: userCreated.idUser,
       tenantId: userCreated.idTenant,
@@ -184,7 +210,7 @@ export class AuthService {
 
     await this.saveRefreshToken(userCreated.idUser, refreshToken, dto.deviceId);
 
-    return { accessToken, refreshToken };
+    return { user: userProfile, accessToken, refreshToken };
   }
 
   async logout(userId: string, deviceId: string) {

@@ -205,6 +205,7 @@ export class OrdersService {
       include: {
         restaurant: {
           select: {
+            address: true,
             name: true,
             idTenant: true,
             lat: true,
